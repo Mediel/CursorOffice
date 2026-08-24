@@ -33,9 +33,9 @@ public sealed class CursorTranscriptAgentEventSource : IAgentEventSource
         this.timeProvider = timeProvider ?? TimeProvider.System;
         this.initialLookback = initialLookback ?? TimeSpan.FromMinutes(5);
         // Hooks are the authoritative real-time signal. Transcript timestamps are
-        // only a short fallback, so they must stop claiming "working" quickly
-        // after Cursor stops writing while still smoothing brief write gaps.
-        this.activeWindow = activeWindow ?? TimeSpan.FromSeconds(12);
+        // a fallback that must cover thinking pauses and long tool calls when
+        // hooks are missing or delayed, without keeping finished work alive forever.
+        this.activeWindow = activeWindow ?? TimeSpan.FromSeconds(45);
         this.pollingInterval = pollingInterval ?? TimeSpan.FromMilliseconds(300);
     }
 
@@ -61,9 +61,7 @@ public sealed class CursorTranscriptAgentEventSource : IAgentEventSource
                     && activeParentIds.Contains(transcript.InstanceId);
                 var status = isCoordinating || now - transcript.LastWriteTime <= activeWindow
                     ? AgentStatus.Working
-                    : transcript.IsSubagent
-                        ? AgentStatus.Completed
-                        : AgentStatus.Idle;
+                    : AgentStatus.Idle;
 
                 if (!observed.TryGetValue(transcript.Path, out var previous))
                 {

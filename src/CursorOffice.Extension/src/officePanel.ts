@@ -2,6 +2,7 @@ import { randomBytes } from 'node:crypto';
 import { userInfo } from 'node:os';
 import * as vscode from 'vscode';
 import type { LocalHostClient } from './host/localHostClient';
+import { ownerRoleFor, readOfficePreferences } from './officePreferences';
 import type { WindowPresenceReporter } from './windowPresenceReporter';
 
 type WebviewMessage = {
@@ -30,7 +31,10 @@ export class OfficePanel {
     );
     vscode.workspace.onDidChangeConfiguration(
       event => {
-        if (event.affectsConfiguration('cursorOffice.ownerName')) {
+        if (event.affectsConfiguration('cursorOffice.language')
+          || event.affectsConfiguration('cursorOffice.shirtColors')) {
+          this.configureWebview();
+        } else if (event.affectsConfiguration('cursorOffice.ownerName')) {
           this.sendBootstrap();
         }
       },
@@ -95,6 +99,7 @@ export class OfficePanel {
   }
 
   private sendBootstrap(): void {
+    const preferences = readOfficePreferences();
     const configuredName = vscode.workspace
       .getConfiguration('cursorOffice')
       .get<string>('ownerName', '')
@@ -105,7 +110,7 @@ export class OfficePanel {
       payload: {
         owner: {
           displayName: configuredName || userInfo().username,
-          role: 'Majitel kanceláře',
+          role: ownerRoleFor(preferences.language),
           accent: '#f4b85c'
         },
         agents: this.host.currentAgents,
@@ -117,6 +122,7 @@ export class OfficePanel {
   }
 
   private getHtml(): string {
+    const preferences = readOfficePreferences();
     const webview = this.panel.webview;
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, 'media', 'office.js')
@@ -127,7 +133,7 @@ export class OfficePanel {
     const nonce = randomBytes(16).toString('base64');
 
     return `<!doctype html>
-<html lang="cs">
+<html lang="${preferences.language}">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -136,7 +142,7 @@ export class OfficePanel {
     <title>Cursor Office</title>
   </head>
   <body>
-    <div id="app"></div>
+    <div id="app" data-office-preferences="${encodeURIComponent(JSON.stringify(preferences))}"></div>
     <script nonce="${nonce}" type="module" src="${scriptUri}"></script>
   </body>
 </html>`;

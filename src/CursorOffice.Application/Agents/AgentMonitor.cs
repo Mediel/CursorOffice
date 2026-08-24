@@ -22,9 +22,17 @@ public sealed class AgentMonitor(AgentRegistry registry, IAgentEventSource event
             registry.TryGet(activity.AgentId, out var previous);
             if (activity.IsFallback && previous is { IsFallback: false })
             {
-                // Cursor Hooks describe the actual agent loop. File timestamps are
-                // only a fallback and must never resurrect work after response/stop.
-                continue;
+                // Hooks own terminal lifecycle. Fallback must not undo completed,
+                // offline or error. A fresh transcript write is still allowed to
+                // resume working after a non-terminal hook such as afterAgentResponse
+                // when preToolUse hooks did not arrive for the same generation.
+                if (activity.Status != AgentStatus.Working
+                    || previous.Status is AgentStatus.Completed
+                        or AgentStatus.Offline
+                        or AgentStatus.Error)
+                {
+                    continue;
+                }
             }
             var interactionKind = activity.InteractionKind;
             if (interactionKind is null

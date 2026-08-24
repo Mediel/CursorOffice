@@ -133,6 +133,7 @@ type MovementWatch = {
   observedAt: number;
   stuckSince?: number;
   lastRecoveryAt: number;
+  forceMoveUntil: number;
 };
 
 function standardMaterial(color: number, roughness = 0.76): THREE.MeshStandardMaterial {
@@ -1422,6 +1423,10 @@ export class OfficeWorld {
           };
           this.crowdConflicts.set(yielder.id, conflict);
         }
+        const movementWatch = this.movementWatches.get(yielder.id);
+        if (seconds < (movementWatch?.forceMoveUntil ?? 0)) {
+          continue;
+        }
         if (seconds < conflict.releaseUntil) {
           continue;
         }
@@ -1544,7 +1549,7 @@ export class OfficeWorld {
         if (first.length === 0 || second.length === 0 || third.length === 0 || !clearsBlocker) {
           continue;
         }
-        controller.setPath(route);
+        controller.setPath(route, true);
         return true;
       }
     }
@@ -1564,7 +1569,7 @@ export class OfficeWorld {
     if (route.length === 0) {
       return false;
     }
-    controller.setPath(route);
+    controller.setPath(route, true);
     return true;
   }
 
@@ -1601,7 +1606,8 @@ export class OfficeWorld {
         watch = {
           position: traveler.position.clone(),
           observedAt: seconds,
-          lastRecoveryAt: Number.NEGATIVE_INFINITY
+          lastRecoveryAt: Number.NEGATIVE_INFINITY,
+          forceMoveUntil: 0
         };
         this.movementWatches.set(traveler.id, watch);
         continue;
@@ -1640,11 +1646,19 @@ export class OfficeWorld {
             0.28
           );
           if (replanned.length > 0) {
-            controller.setPath(replanned);
+            controller.setPath(replanned, true);
             recoveredIds.add(traveler.id);
           }
         }
       } else {
+        recoveredIds.add(traveler.id);
+      }
+      if (!recoveredIds.has(traveler.id) && crowdWaiting.has(traveler.id)) {
+        // A dense cluster or nearby furniture can make every safe detour
+        // temporarily impossible. Never leave the selected yielder paused
+        // forever: let it move for a short bounded interval while the existing
+        // separation pass creates room, then resume normal conflict handling.
+        watch.forceMoveUntil = seconds + 1.1;
         recoveredIds.add(traveler.id);
       }
       watch.lastRecoveryAt = seconds;

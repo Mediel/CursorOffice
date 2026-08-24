@@ -27,7 +27,7 @@ Workspace nebo repozitář je organizační kontext, nikoli automaticky další 
 
 ### Role a stav používají dvě barvy
 
-Stálá barva košile vyjadřuje roli: majitel je zelený, manažer tyrkysový, hlavní chat/senior modrý a subagent fialový. Manažer, chat/senior a subagent nosí stejnou vodorovnou bílou obdélníkovou jmenovku s tmavým tiskem; její barva se podle role ani stavu nemění. Majitel jmenovku na košili nenosí. Jeho jmenovka nad hlavou zůstává zlatá jako decentní označení role; samotná postava nenosí korunu ani trvale plovoucí korunkovou emoci. Odstín košile se podle stabilní identity mírně liší, ale zůstává ve své rolové barevné rodině. Proměnná barva světelného kruhu, jmenovky nad hlavou a stavového textu vyjadřuje lifecycle stav podle tabulky níže. Spodní legenda i avatary v týmovém panelu používají stejnou mapu. Barvy místností již nejsou vydávány za role ani za stav postavy.
+Stálá barva košile vyjadřuje roli: majitel je zelený, manažer výrazně tyrkysový, hlavní chat/senior sytě královsky modrý a subagent fialový. Tyrkysová manažera a modrá seniora mají záměrně velký rozdíl odstínu, aby byly role čitelné i v tmavé scéně a při pohledu z dálky. Manažer, chat/senior a subagent nosí stejnou vodorovnou bílou obdélníkovou jmenovku s tmavým tiskem; její barva se podle role ani stavu nemění. Majitel jmenovku na košili nenosí. Jeho jmenovka nad hlavou zůstává zlatá jako decentní označení role; samotná postava nenosí korunu ani trvale plovoucí korunkovou emoci. Odstín košile se podle stabilní identity mírně liší, ale zůstává ve své rolové barevné rodině. Proměnná barva světelného kruhu, jmenovky nad hlavou a stavového textu vyjadřuje lifecycle stav podle tabulky níže. Spodní legenda i avatary v týmovém panelu používají stejnou mapu. Barvy místností již nejsou vydávány za role ani za stav postavy.
 
 Vzhled postavy se deterministicky odvozuje z její stabilní identity. Postavy proto mohou být nižší, vyšší, štíhlé, běžné, širší, podsadité nebo atletické a používají různé odstíny pokožky a vlasů. Účesy zahrnují pleš, velmi krátké a krátké vlasy, pěšinku, bob, delší vlasy, kudrny, drdol a mohykán. Majitel má stabilní reprezentativní executive variantu: plný tmavý účes, zřetelnou pěšinku a tvarovanou patku, která je čitelná i z horní izometrické kamery, ale žádné kotlety ani vousy na tvářích. Stejná identita dostane po reloadu stejný vzhled; rozměrové odchylky jsou omezené tak, aby zůstala zachována navigace, sezení a průchod dveřmi.
 
@@ -51,7 +51,7 @@ Cursor Office slučuje několik lokálních zdrojů. Vyšší zdroj nesmí být 
 2. **Lokální metadata transcript souborů** – fallback pro workflow, které nevyšle potřebný hook. Sleduje pouze cestu, velikost a čas změny; obsah `.jsonl` neotevírá.
 3. **Prezentační projekce Webview** – z agentů a živých oken sestaví manažery, týmovou hierarchii, cíle v místnostech a animace. Nemění skutečný Cursor stav.
 
-Jakmile bylo stejné ID pozorováno přes skutečný hook, starší fallback metadata je nesmí znovu falešně označit jako pracující. Fallback kontroluje změny přibližně po 300 ms a za aktivní považuje metadata změněná v posledních 12 sekundách.
+Jakmile bylo stejné ID pozorováno přes skutečný hook, fallback metadata nesmí zrušit terminální stav `completed`, `offline` ani `error`. Čerstvý zápis do transcript souboru může ale znovu nastavit `working`, pokud hook mezitím přešel jen do neterminálního stavu jako `waitingForUser` a generace ve skutečnosti pokračuje. Fallback kontroluje změny přibližně po 300 ms a za aktivní považuje metadata změněná v posledních 45 sekundách.
 
 ## Pracovní tok a sociální předávání
 
@@ -188,7 +188,7 @@ Autonomní rozhodnutí se znovu plánuje přibližně po 20 až 28 sekundách. P
 
 Pevné překážky jsou součástí kolizní mapy. Visibility-graph A* vede trasu kolem stěn, stolů, gauče a dalšího nábytku. Dveře mají vlastní FIFO správu průchodu: první postava si portál krátce rezervuje, ostatní čekají před prahem.
 
-Mimo dveře se předpovídají konflikty pohybujících se postav. Stabilní priorita zabrání tomu, aby obě střídavě uskakovaly; jedna krátce počká a případně dostane boční waypoint. Watchdog sleduje skutečný postup i během dávání přednosti. Pokud lokální úkrok selže, přepočítá celou trasu se všemi ostatními postavami jako dočasnými kruhovými překážkami, takže může obejít stolek nebo použít delší chodbu. Nábytková sedadla oddělují bezpečný bod chůze od vizuální kotvy na sedáku, takže postava neprochází colliderem gauče.
+Mimo dveře se předpovídají konflikty pohybujících se postav. Stabilní priorita zabrání tomu, aby obě střídavě uskakovaly; jedna krátce počká a případně dostane boční waypoint. Watchdog sleduje skutečný postup i během dávání přednosti. Pokud lokální úkrok selže, přepočítá celou trasu se všemi ostatními postavami jako dočasnými kruhovými překážkami, takže může obejít stolek nebo použít delší chodbu. Když v hustém shluku nelze bezpečnou objížďku naplánovat, pozastavenou postavu přibližně na 1,1 sekundy uvolní a nechá dynamickou separaci vytvořit prostor; po tomto omezeném intervalu se znovu použije běžná stabilní priorita. Nábytková sedadla oddělují bezpečný bod chůze od vizuální kotvy na sedáku, takže postava neprochází colliderem gauče.
 
 ## Jména, modely a tokeny
 

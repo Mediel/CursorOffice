@@ -55,7 +55,7 @@ Manažer představuje okno a existuje i bez chatu. Chat se objeví až po rozpoz
 Nejdřív rozlište skutečný hook a fallback:
 
 - Hook události se obvykle projeví během stovek milisekund.
-- Fallback metadata označují práci jen po změně transcript souboru a po 12 sekundách bez další změny se vracejí do `idle`.
+- Fallback metadata označují práci jen po změně transcript souboru a po 45 sekundách bez další změny se vracejí do `idle`.
 - Dlouhý vzdálený výpočet nebo tool call nemusí transcript průběžně zapisovat. Pokud jeho lifecycle hook daná verze Cursoru neposlala, fallback nemá bezpečný důkaz pokračující práce.
 
 Zkontrolujte:
@@ -118,7 +118,7 @@ Další aktivita titul znovu zkusí načíst. Zprávy a transcript se kvůli ná
 
 ## Dvě postavy stojí v sobě nebo se zaseknou ve dveřích
 
-Současná navigace používá pevnou kolizní mapu, FIFO rezervaci dveří, dynamickou separaci a watchdog trasy. Krátké čekání před dveřmi je očekávané; průchod nábytkem nebo trvalé poskakování ne. Od verze `0.1.24` watchdog zůstává aktivní i pro postavu dávající přednost a při zablokování plánuje novou trasu, v níž jsou ostatní postavy dočasné kruhové překážky. Když lokální úkrok u nábytku nestačí, může zvolit delší objížďku místností.
+Současná navigace používá pevnou kolizní mapu, FIFO rezervaci dveří, dynamickou separaci a watchdog trasy. Krátké čekání před dveřmi je očekávané; průchod nábytkem nebo trvalé poskakování ne. Watchdog zůstává aktivní i pro postavu dávající přednost a při zablokování plánuje novou trasu, v níž jsou ostatní postavy dočasné kruhové překážky. Když lokální úkrok ani delší objížďka nejsou v hustém shluku dostupné, watchdog na omezenou dobu uvolní dávající postavu, aby separace vytvořila prostor; postava proto nesmí zůstat pozastavená trvale.
 
 Pro reprodukci si poznamenejte:
 

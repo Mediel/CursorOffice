@@ -732,7 +732,7 @@ export class CharacterController {
     this.setPath([position]);
   }
 
-  public setPath(waypoints: readonly THREE.Vector3[]): void {
+  public setPath(waypoints: readonly THREE.Vector3[], resumeMovement = false): void {
     const destination = waypoints.at(-1);
     if (!destination) {
       this.path = [];
@@ -742,6 +742,9 @@ export class CharacterController {
     const sameRoute = this.path.length === waypoints.length
       && this.path.every((waypoint, index) => waypoint.distanceToSquared(waypoints[index]) < 0.000001);
     if (sameRoute) {
+      if (resumeMovement) {
+        this.movementPaused = false;
+      }
       return;
     }
     this.path = waypoints.map(waypoint => waypoint.clone());

@@ -8,6 +8,12 @@ export type AgentStatus =
   | 'offline';
 
 export type AgentVisualRole = 'owner' | 'manager' | 'chat' | 'subagent';
+export type OfficeLanguage = 'cs' | 'en';
+export type OfficeRoleColors = Record<AgentVisualRole, string>;
+export type OfficePreferences = {
+  language: OfficeLanguage;
+  roleColors: OfficeRoleColors;
+};
 
 export type AgentSnapshot = {
   id: string;
@@ -103,23 +109,22 @@ export const statusColors: Record<AgentStatus, number> = {
   offline: 0x566471
 };
 
-export const statusLabels: Record<AgentStatus, string> = {
-  unknown: 'Neznámý stav',
-  idle: 'Volný',
-  working: 'Pracuje',
-  waitingForUser: 'Čeká na vás',
-  error: 'Potřebuje pomoc',
-  completed: 'Hotovo',
-  offline: 'Offline'
-};
-
 /** Role is the permanent shirt color; runtime status uses the selection ring and labels. */
 export const roleColors: Record<AgentVisualRole, number> = {
   owner: 0x32c477,
-  manager: 0x43b9c8,
-  chat: 0x4da3ff,
+  manager: 0x00c7c7,
+  chat: 0x2f6bff,
   subagent: 0xb084ff
 };
+
+export function applyRoleColors(colors?: Partial<OfficeRoleColors>): void {
+  for (const role of ['owner', 'manager', 'chat', 'subagent'] as const) {
+    const value = colors?.[role];
+    if (value && /^#[0-9a-f]{6}$/i.test(value)) {
+      roleColors[role] = Number.parseInt(value.slice(1), 16);
+    }
+  }
+}
 
 export function visualRoleFor(agent: AgentSnapshot): Exclude<AgentVisualRole, 'owner'> {
   if (agent.id.startsWith('cursor-window-manager-')) {
