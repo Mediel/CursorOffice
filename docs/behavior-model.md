@@ -153,13 +153,13 @@ Postava ve volném režimu nezůstává trvale stát u východu. Po příchodu n
 
 - sedět na gauči nebo v lounge,
 - přejít do zasedačky,
-- jít do kuchyňky a zvednout hrnek,
+- jít ke kávovaru, připravit si kávu, odnést hrnek na volné místo, napít se a vrátit jej ke dřezu,
 - rozhlédnout se, protáhnout se, zamávat nebo oslavit dokončení,
 - zapojit se do rozhovoru ve dvojici nebo skupině až čtyř postav.
 
 Ambientní sociální koordinátor přibližně každých 12 až 32 sekund zvažuje novou scénu, pouze pokud nečeká důležitější skutečná interakce. Vybere dvě až čtyři dostupné postavy a jednu z prostorových formací: sousední místa na gauči, židle kolem poradního stolu nebo otevřený stojící hlouček. Všechna místa se rezervují atomicky; pokud je některé obsazené neúčastníkem, koordinátor zvolí jinou scénu nebo ji odloží. Rozhovor začne až po příchodu a usazení posledního člena. Jeden člen mluví, ostatní naslouchají a role se nepravidelně střídají. Mrkání, dýchání a drobné pohyby běží nezávisle na lifecycle.
 
-Volnočasové časování není společný pevný interval. Doba pobytu se začne počítat až po skutečném příchodu na místo: kuchyňka typicky 7–24 sekund, gauč přibližně 18–58 sekund (u hotového agenta až 72), porada 12–46 sekund a ostatní odpočinek 10–48 sekund podle typu POI. Popíjení trvá zhruba 3–9 sekund, protažení 3–7 sekund, mávnutí 2–5 sekund a rozhlížení 2–6 sekund. Skupinový rozhovor trvá podle prostředí přibližně 8–46 sekund a mluvčí se střídají po 1–5 sekundách. Po poslední replice postavy ještě různě dlouho zůstávají sedět nebo stát, takže se nerozejdou v jediném synchronním okamžiku.
+Volnočasové časování není společný pevný interval. Doba pobytu se začne počítat až po skutečném příchodu na místo: gauč přibližně 18–58 sekund (u hotového agenta až 72), porada 12–46 sekund a ostatní odpočinek 10–48 sekund podle typu POI. Kávový cyklus má vlastní fáze: příprava u rezervovaného kávovaru trvá přibližně 2–5 sekund, popíjení na jednom ze tří vyhrazených míst 9–18 sekund a mytí u samostatně rezervovaného dřezu 4–7 sekund. Hrnek je viditelný pouze od dokončení přípravy do konce mytí; při chůzi zůstává vzpřímený před tělem, při pití se opakovaně zvedá k ústům a u dřezu běží proud vody. Běžný stav `idle` používá neutrální emoci, nikoli trvalou ikonu kávy. Pokud je dřez obsazený, postava s prázdným hrnkem vyčká na svém místě a pravidelně rezervaci zkusí znovu. Protažení trvá 3–7 sekund, mávnutí 2–5 sekund a rozhlížení 2–6 sekund. Skupinový rozhovor trvá podle prostředí přibližně 8–46 sekund a mluvčí se střídají po 1–5 sekundách. Po poslední replice postavy ještě různě dlouho zůstávají sedět nebo stát, takže se nerozejdou v jediném synchronním okamžiku.
 
 Skutečný `beforeSubmitPrompt`, odpověď, delegace nebo handoff má před ambientní skupinou vždy prioritu. Pokud se týká některého účastníka, skupina se bezpečně rozpustí, uvolní sociální režim a reálná událost pokračuje přes běžnou frontu. Odchodový deadline dokončeného podagenta je po dobu skupiny pozastaven a po jejím skončení obnoven.
 

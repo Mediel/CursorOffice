@@ -27,7 +27,7 @@ Všechna okna se zobrazují v jedné společné kanceláři. Filtr okna mění p
 - Delegace a handoff propojí hlavní chat s konkrétními subagenty.
 - Pracující postavy sedí u PC; čekající manažer používá zasedačku a chyby debug laboratoř.
 - Skutečný chat nebo subagent ve stavu `Čeká na vás` stojí, natočí se k majiteli a periodicky zamává oběma rukama nad hlavou.
-- Volné postavy mohou jít do lounge nebo kuchyňky, sednout si, mávat a hovořit.
+- Volné postavy mohou jít do lounge nebo kuchyňky, sednout si, mávat a hovořit. Kávový cyklus zahrnuje přípravu, nesení hrnku před tělem, několik doušků, návrat k dřezu a umytí pod tekoucí vodou; mimo cyklus se hrnek ani kávová ikona nezobrazují.
 - Dokončený subagent po handoffu chvíli zůstává a potom odejde přes východ.
 - Nová aktivita stejného ID může odchod zrušit nebo postavu znovu přivést.
 

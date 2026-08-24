@@ -11,7 +11,9 @@ import {
 } from './AnimatedCharacterController';
 import {
   agentDeskFixtures,
+  coffeeMachinePoiId,
   departurePoint,
+  kitchenSinkPoiId,
   loungeSofaFixture,
   loungeTableFixture,
   ownerDesk,
@@ -60,6 +62,22 @@ type AgentBehavior = {
   celebrationStarted: boolean;
   phase: 'present' | 'departing' | 'departed';
   lastInteractionKey?: string;
+  coffeeBreak?: CoffeeBreakState;
+};
+
+type CoffeeBreakPhase =
+  | 'fetching'
+  | 'brewing'
+  | 'walkingToBreak'
+  | 'drinking'
+  | 'waitingForSink'
+  | 'returning'
+  | 'washing';
+
+type CoffeeBreakState = {
+  phase: CoffeeBreakPhase;
+  phaseStartedAt: number;
+  phaseUntil: number;
 };
 
 type SocialEncounter = {
@@ -171,6 +189,8 @@ export class OfficeWorld {
   private ownerAutonomySequence = 0;
   private ownerAutonomyAction = 'initializing';
   private officeFloor: THREE.Mesh | undefined;
+  private coffeeMachineLight: THREE.Mesh<THREE.SphereGeometry, THREE.MeshStandardMaterial> | undefined;
+  private kitchenWaterStream: THREE.Mesh<THREE.CylinderGeometry, THREE.MeshStandardMaterial> | undefined;
   private owner: CharacterController | undefined;
   private ownerDescriptorKey: string | undefined;
   private selectedId: string | undefined;
@@ -299,16 +319,7 @@ export class OfficeWorld {
     if (!controller || !behavior) {
       return;
     }
-    this.poiManager.release(id);
-    const destination = this.poiManager.claim(id, ['kitchen'], 0);
-    if (!destination) {
-      return;
-    }
-    behavior.destination = destination;
-    behavior.nextMoveAt = Number.POSITIVE_INFINITY;
-    behavior.nextGestureAt = performance.now() / 1000 + 1;
-    controller.setRestPose(destination.restPose, destination.facing, destination.visualOffset);
-    controller.setPath(this.navigation.plan(controller.group.position, destination.position));
+    this.startCoffeeBreak(id, controller, behavior, this.sceneSeconds);
   }
 
   /** Deterministic standalone regression for walkable approach + sofa seating anchor. */
@@ -379,9 +390,13 @@ export class OfficeWorld {
       position: controller?.getPosition().toArray(),
       moving: controller?.isMoving,
       visualState: controller?.visualState,
+      coffeeState: controller?.coffeeState,
+      coffeePhase: behavior?.coffeeBreak?.phase,
       path: controller?.getRemainingPath().map(point => point.toArray()),
       nextGestureAt: behavior?.nextGestureAt,
-      destination: behavior?.destination?.poiId
+      destination: behavior?.destination?.poiId,
+      machineActive: behavior?.coffeeBreak?.phase === 'brewing',
+      waterRunning: behavior?.coffeeBreak?.phase === 'washing'
     };
   }
 
@@ -918,6 +933,8 @@ export class OfficeWorld {
     controller: CharacterController,
     behavior: AgentBehavior
   ): void {
+    behavior.coffeeBreak = undefined;
+    controller.setCoffeeMode('none');
     this.poiManager.release(id);
     behavior.pendingDwellPoiId = undefined;
     const attentionRequested = requestsAttention(id, behavior.status);
@@ -998,6 +1015,7 @@ export class OfficeWorld {
     this.updateCameraMovement(deltaSeconds);
     this.updateAgentLifecycle(seconds);
     this.updateLeisureBehaviors(seconds);
+    this.updateKitchenAppliances(seconds);
     this.updateOwnerAutonomy(seconds);
     this.updateSocialBehaviors(seconds);
     this.updateAgentGestures(seconds);
@@ -1127,6 +1145,7 @@ export class OfficeWorld {
       .filter(([id, behavior]) => behavior.phase === 'present'
         && isLeisureBehavior(behavior)
         && !behavior.retiring
+        && !behavior.coffeeBreak
         && !this.isSociallyBusy(id)
         && !this.agents.get(id)?.isMoving)
       .map(([id]) => id)
@@ -1565,6 +1584,10 @@ export class OfficeWorld {
       if (!controller) {
         continue;
       }
+      if (behavior.coffeeBreak) {
+        this.updateCoffeeBreak(id, controller, behavior, seconds);
+        continue;
+      }
       const sociallyBusy = this.isSociallyBusy(id);
       if (behavior.pendingDwellPoiId
         && !controller.isMoving
@@ -1589,7 +1612,12 @@ export class OfficeWorld {
 
       this.poiManager.release(id);
       const preferredKinds = leisurePoiKinds(behavior.retiring ? 'completed' : behavior.status, behavior.cycle);
-      const destination = this.poiManager.claim(id, preferredKinds, behavior.index + behavior.cycle * 3)
+      if (preferredKinds[0] === 'kitchen'
+        && this.startCoffeeBreak(id, controller, behavior, seconds)) {
+        continue;
+      }
+      const nonKitchenKinds = preferredKinds.filter(kind => kind !== 'kitchen');
+      const destination = this.poiManager.claim(id, nonKitchenKinds, behavior.index + behavior.cycle * 3)
         ?? this.poiManager.claim(id, ['lounge', 'meeting', 'idle'], behavior.index + behavior.cycle * 3);
       if (!destination) {
         behavior.nextMoveAt = seconds + variedSeconds(7, 17, `${id}:no-poi:${behavior.cycle}`);
@@ -1603,6 +1631,223 @@ export class OfficeWorld {
     }
 
     this.queueAmbientInteraction(seconds);
+  }
+
+  private startCoffeeBreak(
+    id: string,
+    controller: CharacterController,
+    behavior: AgentBehavior,
+    seconds: number
+  ): boolean {
+    if (behavior.coffeeBreak || this.isSociallyBusy(id)) {
+      return false;
+    }
+    const machine = this.poiManager.claimSpecific(id, coffeeMachinePoiId);
+    if (!machine) {
+      return false;
+    }
+    behavior.coffeeBreak = {
+      phase: 'fetching',
+      phaseStartedAt: seconds,
+      phaseUntil: Number.POSITIVE_INFINITY
+    };
+    behavior.destination = machine;
+    behavior.pendingDwellPoiId = undefined;
+    behavior.nextMoveAt = Number.POSITIVE_INFINITY;
+    behavior.nextGestureAt = Number.POSITIVE_INFINITY;
+    controller.setCoffeeMode('none');
+    controller.setActivity('idle');
+    controller.setRestPose(machine.restPose, machine.facing, machine.visualOffset);
+    controller.setPath(this.navigation.plan(controller.group.position, machine.position));
+    return true;
+  }
+
+  private updateCoffeeBreak(
+    id: string,
+    controller: CharacterController,
+    behavior: AgentBehavior,
+    seconds: number
+  ): void {
+    const coffeeBreak = behavior.coffeeBreak;
+    if (!coffeeBreak) {
+      return;
+    }
+    if (!isLeisureBehavior(behavior) || requestsAttention(id, behavior.status) || this.isSociallyBusy(id)) {
+      this.cancelCoffeeBreak(id, controller, behavior, seconds);
+      return;
+    }
+
+    const arrived = !controller.isMoving
+      && behavior.destination !== undefined
+      && controller.getPosition().distanceTo(behavior.destination.position) <= 0.2;
+
+    switch (coffeeBreak.phase) {
+      case 'fetching':
+        if (!arrived) {
+          return;
+        }
+        controller.stopMovement();
+        controller.setRestPose('stand', behavior.destination!.facing);
+        coffeeBreak.phase = 'brewing';
+        coffeeBreak.phaseStartedAt = seconds;
+        coffeeBreak.phaseUntil = seconds + variedSeconds(2.4, 4.6, `${id}:coffee:brew:${behavior.cycle}`);
+        return;
+
+      case 'brewing':
+        if (seconds < coffeeBreak.phaseUntil) {
+          return;
+        }
+        controller.setCoffeeMode('carrying');
+        {
+          const breakDestination = this.poiManager.claim(
+            id,
+            ['coffee'],
+            behavior.index + behavior.cycle,
+            behavior.teamKey
+          );
+          if (!breakDestination) {
+            const machine = this.poiManager.claimSpecific(id, coffeeMachinePoiId);
+            if (machine) {
+              behavior.destination = machine;
+            }
+            this.beginDrinkingCoffee(id, controller, behavior, seconds);
+            return;
+          }
+          behavior.destination = breakDestination;
+          controller.setRestPose('stand', breakDestination.facing);
+          controller.setPath(this.navigation.plan(controller.group.position, breakDestination.position));
+          coffeeBreak.phase = 'walkingToBreak';
+          coffeeBreak.phaseStartedAt = seconds;
+          coffeeBreak.phaseUntil = Number.POSITIVE_INFINITY;
+        }
+        return;
+
+      case 'walkingToBreak':
+        if (!arrived) {
+          return;
+        }
+        controller.stopMovement();
+        controller.setRestPose('stand', behavior.destination!.facing);
+        this.beginDrinkingCoffee(id, controller, behavior, seconds);
+        return;
+
+      case 'drinking':
+        if (seconds < coffeeBreak.phaseUntil) {
+          return;
+        }
+        controller.setCoffeeMode('carrying');
+        coffeeBreak.phase = 'waitingForSink';
+        coffeeBreak.phaseStartedAt = seconds;
+        coffeeBreak.phaseUntil = seconds;
+        // Fall through to the same-frame sink claim so an empty sink does not
+        // introduce an artificial pause after the final sip.
+        this.tryReturnCoffeeCup(id, controller, behavior, seconds);
+        return;
+
+      case 'waitingForSink':
+        if (seconds >= coffeeBreak.phaseUntil) {
+          this.tryReturnCoffeeCup(id, controller, behavior, seconds);
+        }
+        return;
+
+      case 'returning':
+        if (!arrived) {
+          return;
+        }
+        controller.stopMovement();
+        controller.setRestPose('stand', behavior.destination!.facing);
+        coffeeBreak.phase = 'washing';
+        coffeeBreak.phaseStartedAt = seconds;
+        coffeeBreak.phaseUntil = seconds + variedSeconds(3.8, 6.8, `${id}:coffee:wash:${behavior.cycle}`);
+        controller.setCoffeeMode('washing', coffeeBreak.phaseUntil - seconds);
+        return;
+
+      case 'washing':
+        if (seconds < coffeeBreak.phaseUntil) {
+          return;
+        }
+        controller.setCoffeeMode('none');
+        behavior.coffeeBreak = undefined;
+        behavior.destination = undefined;
+        this.poiManager.release(id);
+        behavior.nextMoveAt = seconds + variedSeconds(1.2, 3.4, `${id}:coffee:leave:${behavior.cycle}`);
+        behavior.nextGestureAt = seconds + variedSeconds(5, 14, `${id}:coffee:next-gesture:${behavior.cycle}`);
+        return;
+    }
+  }
+
+  private beginDrinkingCoffee(
+    id: string,
+    controller: CharacterController,
+    behavior: AgentBehavior,
+    seconds: number
+  ): void {
+    const coffeeBreak = behavior.coffeeBreak;
+    if (!coffeeBreak) {
+      return;
+    }
+    const duration = variedSeconds(8.5, 17.5, `${id}:coffee:drink:${behavior.cycle}`);
+    coffeeBreak.phase = 'drinking';
+    coffeeBreak.phaseStartedAt = seconds;
+    coffeeBreak.phaseUntil = seconds + duration;
+    controller.setCoffeeMode('drinking', duration);
+  }
+
+  private tryReturnCoffeeCup(
+    id: string,
+    controller: CharacterController,
+    behavior: AgentBehavior,
+    seconds: number
+  ): void {
+    const coffeeBreak = behavior.coffeeBreak;
+    if (!coffeeBreak) {
+      return;
+    }
+    const sink = this.poiManager.claimSpecific(id, kitchenSinkPoiId);
+    if (!sink) {
+      coffeeBreak.phase = 'waitingForSink';
+      coffeeBreak.phaseUntil = seconds + variedSeconds(0.8, 1.8, `${id}:coffee:sink-retry:${behavior.cycle}`);
+      return;
+    }
+    behavior.destination = sink;
+    controller.setRestPose('stand', sink.facing);
+    controller.setPath(this.navigation.plan(controller.group.position, sink.position));
+    coffeeBreak.phase = 'returning';
+    coffeeBreak.phaseStartedAt = seconds;
+    coffeeBreak.phaseUntil = Number.POSITIVE_INFINITY;
+  }
+
+  private cancelCoffeeBreak(
+    id: string,
+    controller: CharacterController,
+    behavior: AgentBehavior,
+    seconds: number
+  ): void {
+    behavior.coffeeBreak = undefined;
+    behavior.destination = undefined;
+    behavior.pendingDwellPoiId = undefined;
+    controller.setCoffeeMode('none');
+    this.poiManager.release(id);
+    behavior.nextMoveAt = seconds + 1;
+    behavior.nextGestureAt = seconds + 4;
+  }
+
+  private updateKitchenAppliances(seconds: number): void {
+    const phases = [...this.agentBehaviors.values()].map(behavior => behavior.coffeeBreak?.phase);
+    const brewing = phases.includes('brewing');
+    const washing = phases.includes('washing');
+    if (this.coffeeMachineLight) {
+      this.coffeeMachineLight.material.emissiveIntensity = brewing
+        ? 1.8 + Math.sin(seconds * 8) * 0.45
+        : 1.2;
+      this.coffeeMachineLight.scale.setScalar(brewing ? 1.08 + Math.sin(seconds * 8) * 0.08 : 1);
+    }
+    if (this.kitchenWaterStream) {
+      this.kitchenWaterStream.visible = washing;
+      this.kitchenWaterStream.material.opacity = washing
+        ? 0.68 + Math.sin(seconds * 13) * 0.12
+        : 0;
+    }
   }
 
   private queueAmbientInteraction(seconds: number): void {
@@ -1620,6 +1865,7 @@ export class OfficeWorld {
       .filter(([id, behavior]) => behavior.phase === 'present'
         && isLeisureBehavior(behavior)
         && !requestsAttention(id, behavior.status)
+        && !behavior.coffeeBreak
         && !this.isSociallyBusy(id)
         && !this.agents.get(id)?.isMoving
         && (behavior.kind === 'primary' || behavior.departAt - seconds > 18))
@@ -1824,6 +2070,10 @@ export class OfficeWorld {
     const hostId = isOwnerConversation ? 'owner' : snapshot.parentAgentId;
     if (!hostId || hostId === snapshot.id) {
       return;
+    }
+    const controller = this.agents.get(snapshot.id);
+    if (controller && behavior.coffeeBreak) {
+      this.cancelCoffeeBreak(snapshot.id, controller, behavior, seconds);
     }
     this.finishAmbientSocialGroupsFor([snapshot.id, hostId], seconds);
     const firstSpeakerId = interaction === 'userPrompt' || interaction === 'delegationStarted'
@@ -2357,6 +2607,8 @@ export class OfficeWorld {
     }
     const exit = departurePoint(behavior.index);
     const direction = exit.clone().sub(controller.group.position);
+    behavior.coffeeBreak = undefined;
+    controller.setCoffeeMode('none');
     this.poiManager.release(id);
     behavior.destination = undefined;
     behavior.pendingDwellPoiId = undefined;
@@ -2520,6 +2772,7 @@ export class OfficeWorld {
     );
     machineLight.position.set(0.31, 1.43, -0.35);
     kitchen.add(machineLight);
+    this.coffeeMachineLight = machineLight;
     const sink = new THREE.Mesh(
       new THREE.CylinderGeometry(0.21, 0.21, 0.025, 20),
       standardMaterial(0x526a73, 0.24)
@@ -2528,6 +2781,20 @@ export class OfficeWorld {
     kitchen.add(sink);
     addBox(kitchen, [0.08, 0.35, 0.08], [0.35, 1.18, 0.7], 0x637a84, { roughness: 0.26 });
     addBox(kitchen, [0.2, 0.07, 0.07], [0.44, 1.34, 0.7], 0x637a84, { roughness: 0.26 });
+    const waterStream = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.014, 0.019, 0.27, 8),
+      new THREE.MeshStandardMaterial({
+        color: 0x7ad9f5,
+        emissive: 0x2e8cac,
+        emissiveIntensity: 0.58,
+        transparent: true,
+        opacity: 0
+      })
+    );
+    waterStream.position.set(0.44, 1.16, 0.66);
+    waterStream.visible = false;
+    kitchen.add(waterStream);
+    this.kitchenWaterStream = waterStream;
     for (const z of [-0.02, 0.18]) {
       const mug = new THREE.Mesh(
         new THREE.CylinderGeometry(0.07, 0.06, 0.13, 12),

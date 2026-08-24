@@ -16,6 +16,7 @@ export type CharacterRestPose = 'stand' | 'workSeat' | 'loungeSeat' | 'sofaSeat'
 export type CharacterActivity = 'idle' | 'work' | 'talk' | 'listen' | 'concerned' | 'sleepy';
 export type CharacterGesture = 'lookAround' | 'wave' | 'attention' | 'stretch' | 'drink' | 'celebrate';
 export type CharacterConversationMode = 'talk' | 'listen';
+export type CharacterCoffeeMode = 'none' | 'carrying' | 'drinking' | 'washing';
 export type CharacterRestState = {
   pose: CharacterRestPose;
   facing: number;
@@ -471,6 +472,7 @@ export class CharacterController {
   private labelHovered = false;
   private labelExpandedUntil = 0;
   private conversationMode: CharacterConversationMode | undefined;
+  private coffeeMode: CharacterCoffeeMode = 'none';
   private readonly appearanceKey: string;
 
   public constructor(private readonly descriptor: CharacterDescriptor) {
@@ -527,19 +529,19 @@ export class CharacterController {
     this.coffeeCup = new THREE.Group();
     this.coffeeCup.visible = false;
     const cupBody = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.055, 0.045, 0.105, 12),
+      new THREE.CylinderGeometry(0.074, 0.062, 0.14, 12),
       standardMaterial(0xe7edf0, 0.48)
     );
     const coffee = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.048, 0.048, 0.008, 12),
+      new THREE.CylinderGeometry(0.066, 0.066, 0.008, 12),
       standardMaterial(0x5a321d, 0.66)
     );
-    coffee.position.y = 0.055;
+    coffee.position.y = 0.073;
     const cupHandle = new THREE.Mesh(
-      new THREE.TorusGeometry(0.04, 0.012, 6, 12, Math.PI * 1.65),
+      new THREE.TorusGeometry(0.05, 0.014, 6, 12, Math.PI * 1.65),
       standardMaterial(0xe7edf0, 0.48)
     );
-    cupHandle.position.set(0.055, 0, 0);
+    cupHandle.position.set(0.072, 0, 0);
     this.coffeeCup.add(cupBody, coffee, cupHandle);
     for (const x of [-0.31, 0.31]) {
       const pivot = new THREE.Group();
@@ -553,7 +555,9 @@ export class CharacterController {
       hand.castShadow = true;
       pivot.add(arm, hand);
       if (x > 0) {
-        this.coffeeCup.position.set(0, -0.49, 0);
+        // The hand closes around the handle; the cup body remains visibly next
+        // to the hand rather than intersecting the palm.
+        this.coffeeCup.position.set(-0.11, -0.5, 0);
         pivot.add(this.coffeeCup);
       }
       this.body.add(pivot);
@@ -662,6 +666,10 @@ export class CharacterController {
     return isSeatedState(this.stateMachine.state);
   }
 
+  public get coffeeState(): CharacterCoffeeMode {
+    return this.coffeeMode;
+  }
+
   public setTarget(position: THREE.Vector3): void {
     this.setPath([position]);
   }
@@ -701,6 +709,19 @@ export class CharacterController {
 
   public setActivity(activity: CharacterActivity): void {
     this.activity = activity;
+  }
+
+  public setCoffeeMode(mode: CharacterCoffeeMode, durationSeconds?: number): void {
+    if (this.coffeeMode === mode) {
+      return;
+    }
+    this.coffeeMode = mode;
+    this.updateEmotion(this.status);
+    if (mode === 'drinking') {
+      this.stateMachine.transition('drink', true, durationSeconds);
+    } else if (this.stateMachine.state === 'drink') {
+      this.stateMachine.transition('idle', true);
+    }
   }
 
   public setConversationMode(mode?: CharacterConversationMode, labelLane: 'upper' | 'lower' = 'lower'): void {
@@ -976,9 +997,10 @@ export class CharacterController {
     this.selectionRing.position.z = damp(this.selectionRing.position.z, seatedVisualZ, 9, deltaSeconds);
     this.body.scale.y = 1 + breathing * 0.006;
     const relaxedSofaLean = seatedAmount > 0.5 && this.restPose === 'sofaSeat' ? -0.09 : 0;
+    const coffeeLean = this.coffeeMode === 'washing' ? 0.13 : this.coffeeMode === 'drinking' ? 0.025 : 0;
     this.body.rotation.x = damp(
       this.body.rotation.x,
-      state === 'sitWork' ? 0.11 : state === 'sleepy' ? -0.04 : relaxedSofaLean,
+      state === 'sitWork' ? 0.11 : state === 'sleepy' ? -0.04 : coffeeLean || relaxedSofaLean,
       7,
       deltaSeconds
     );
@@ -1011,10 +1033,35 @@ export class CharacterController {
       arm.rotation.z = damp(arm.rotation.z, armTargets[armIndex].z, 11, deltaSeconds);
     });
 
+    const cupArm = this.armPivots[1];
+    const sipAmount = this.coffeeSipAmount(timeSeconds);
+    const cupTilt = this.coffeeMode === 'drinking'
+      ? sipAmount * 0.22
+      : this.coffeeMode === 'washing'
+        ? Math.sin(timeSeconds * 7.5 + this.phase) * 0.2
+        : 0;
+    this.coffeeCup.rotation.x = damp(
+      this.coffeeCup.rotation.x,
+      -cupArm.rotation.x - cupTilt,
+      14,
+      deltaSeconds
+    );
+    this.coffeeCup.rotation.z = damp(
+      this.coffeeCup.rotation.z,
+      -cupArm.rotation.z + (this.coffeeMode === 'washing' ? Math.sin(timeSeconds * 6.8) * 0.16 : 0),
+      14,
+      deltaSeconds
+    );
+
     let headX = 0;
     let headY = 0;
     let headZ = 0;
-    if (expressiveState === 'lookAround' || expressiveState === 'sitLookAround'
+    if (this.coffeeMode === 'washing') {
+      headX = 0.24;
+      headY = Math.sin(timeSeconds * 1.4 + this.phase) * 0.045;
+    } else if (this.coffeeMode === 'drinking') {
+      headX = -0.05 + sipAmount * 0.12;
+    } else if (expressiveState === 'lookAround' || expressiveState === 'sitLookAround'
       || expressiveState === 'idle' || expressiveState === 'sitIdle') {
       headY = Math.sin(timeSeconds * 1.25 + this.phase)
         * (expressiveState === 'lookAround' || expressiveState === 'sitLookAround' ? 0.58 : 0.16);
@@ -1047,7 +1094,7 @@ export class CharacterController {
       18,
       deltaSeconds
     );
-    this.coffeeCup.visible = state === 'drink';
+    this.coffeeCup.visible = this.coffeeMode !== 'none';
 
     const emotionFloat = Math.sin(timeSeconds * 2 + this.phase) * 0.04;
     this.emotionSprite.position.y = (this.descriptor.isOwner ? 1.82 : 1.68) + emotionFloat;
@@ -1071,7 +1118,26 @@ export class CharacterController {
       { x: 0, z: 0.14 },
       { x: 0, z: -0.14 }
     ];
-    if (isWalking) {
+    if (this.coffeeMode === 'carrying') {
+      // Keep the mug upright and in front of the torso while walking back from
+      // the kitchenette instead of letting it swing with the stride.
+      base[0].x = isWalking ? stride * 0.36 : -0.12;
+      base[0].z = 0.18;
+      base[1].x = -1.22 + Math.sin(timeSeconds * 1.7 + this.phase) * 0.025;
+      base[1].z = -0.38;
+    } else if (this.coffeeMode === 'drinking') {
+      const sip = this.coffeeSipAmount(timeSeconds);
+      base[0].x = -0.12;
+      base[0].z = 0.18;
+      base[1].x = THREE.MathUtils.lerp(-1.25, -2.38, sip);
+      base[1].z = -0.4;
+    } else if (this.coffeeMode === 'washing') {
+      const scrub = Math.sin(timeSeconds * 7.5 + this.phase) * 0.09;
+      base[0].x = -1.34 - scrub;
+      base[0].z = 0.34;
+      base[1].x = -1.32 + scrub;
+      base[1].z = -0.34;
+    } else if (isWalking) {
       base[0].x = stride;
       base[1].x = -stride;
     } else if (state === 'sitWork') {
@@ -1133,6 +1199,18 @@ export class CharacterController {
     return base;
   }
 
+  private coffeeSipAmount(timeSeconds: number): number {
+    if (this.coffeeMode !== 'drinking') {
+      return 0;
+    }
+    const cycle = (timeSeconds * 0.52 + this.phase / (Math.PI * 2)) % 1;
+    if (cycle < 0.28 || cycle > 0.78) {
+      return 0;
+    }
+    const normalized = (cycle - 0.28) / 0.5;
+    return Math.sin(normalized * Math.PI) ** 2;
+  }
+
   private addCrown(): void {
     for (const x of [-0.13, 0, 0.13]) {
       const crownPoint = new THREE.Mesh(
@@ -1149,14 +1227,16 @@ export class CharacterController {
     const emoji: Record<CharacterState, string> = {
       owner: '👑',
       unknown: '💭',
-      idle: '☕',
+      idle: '🙂',
       working: '💻',
       waitingForUser: '✋',
       error: '⚠️',
       completed: '✨',
       offline: '💤'
     };
-    const replacement = createEmotionSprite(emoji[state]);
+    const hasCoffee = this.coffeeMode !== 'none';
+    this.emotionSprite.visible = hasCoffee || state !== 'idle';
+    const replacement = createEmotionSprite(hasCoffee ? '☕' : emoji[state]);
     this.emotionSprite.material.map?.dispose();
     this.emotionSprite.material.map = replacement.material.map;
     this.emotionSprite.material.needsUpdate = true;

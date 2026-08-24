@@ -41,7 +41,7 @@ export type AgentDestination = {
   /** Local-space presentation offset applied only while seated. */
   visualOffset?: THREE.Vector3;
 };
-export type OfficePoiKind = 'desk' | 'meeting' | 'lounge' | 'kitchen' | 'idle' | 'social' | 'debug';
+export type OfficePoiKind = 'desk' | 'meeting' | 'lounge' | 'kitchen' | 'coffee' | 'idle' | 'social' | 'debug';
 export type OfficePoi = AgentDestination & {
   id: string;
   kind: OfficePoiKind;
@@ -136,7 +136,8 @@ export const navigationAnchors: readonly THREE.Vector3[] = [
   point(4.35, -5.45), point(6.25, -5.45), point(8.7, -5.4),
   point(-5.7, 2.6), point(-4.65, 4.05), point(-3.8, 4.12), point(-2.4, 4.12),
   point(-1.2, 4.12), point(-4.6, 4.55), point(-2.2, 2.2), point(-0.1, 2.2),
-  point(-8.05, 0.75), point(-8.05, 1.75), point(-7.35, 2.55),
+  point(-8.05, 0.75), point(-8.05, 1.75), point(-7.1, 0.95), point(-7.05, 1.85),
+  point(-6.55, 2.55), point(-7.35, 2.55),
   point(-4.7, 5.45), point(-2.2, 5.55), point(0.35, 5.5), point(2.35, 4.8),
   point(6.2, 0.25), point(6.2, 1.2), point(4.55, 1.45), point(4.55, 3.5),
   point(4.75, 5.15), point(6.45, 5.2), point(8.25, 5.15), point(8.35, 3.5), point(8.25, 1.45)
@@ -148,6 +149,9 @@ export const loungeSpots = [
   point(-5.15, 4.45), point(-0.15, 4.4), point(1.4, 3.8)
 ];
 export const kitchenSpots = [point(-8.05, 0.75), point(-8.05, 1.75)];
+export const coffeeMachinePoiId = 'kitchen-0';
+export const kitchenSinkPoiId = 'kitchen-1';
+export const coffeeBreakSpots = [point(-7.1, 0.95), point(-7.05, 1.85), point(-6.55, 2.55)];
 export const idleSpots = [point(-6.05, 3), point(-4.75, 2.15), point(-2.15, 2.25), point(0.15, 2.2), point(1.55, 4.65)];
 export const errorSpots = [point(4.55, -1.35), point(5.35, -1.35), point(7.25, -1.35), point(8.25, -1.35), point(8.75, -2.55)];
 
@@ -185,6 +189,13 @@ export const officePois: readonly OfficePoi[] = [
   ...kitchenSpots.map((item, index) => poi(
     `kitchen-${index}`,
     'kitchen',
+    item,
+    'stand',
+    -Math.PI / 2
+  )),
+  ...coffeeBreakSpots.map((item, index) => poi(
+    `coffee-break-${index}`,
+    'coffee',
     item,
     'stand',
     -Math.PI / 2
