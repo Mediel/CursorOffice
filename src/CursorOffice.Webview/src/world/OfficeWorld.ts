@@ -139,6 +139,92 @@ function standardMaterial(color: number, roughness = 0.76): THREE.MeshStandardMa
   return new THREE.MeshStandardMaterial({ color, roughness, metalness: 0.04 });
 }
 
+function createWoodFloorMaterial(maxAnisotropy: number): THREE.MeshStandardMaterial {
+  const canvas = document.createElement('canvas');
+  canvas.width = 768;
+  canvas.height = 512;
+  const context = canvas.getContext('2d');
+  if (!context) {
+    return standardMaterial(0x826247, 0.88);
+  }
+
+  const plankWidth = 192;
+  const plankHeight = 64;
+  const plankColors = ['#826247', '#8c6a4c', '#76583f', '#927053', '#7d5e45', '#89664a'];
+  context.fillStyle = '#513a2a';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+
+  for (let row = 0; row < canvas.height / plankHeight; row += 1) {
+    const y = row * plankHeight;
+    const offset = row % 2 === 0 ? 0 : -plankWidth / 2;
+    for (let x = offset; x < canvas.width; x += plankWidth) {
+      const column = Math.floor((x - offset) / plankWidth);
+      const color = plankColors[(row * 3 + column * 5) % plankColors.length];
+      const gradient = context.createLinearGradient(0, y, 0, y + plankHeight);
+      gradient.addColorStop(0, lightenHex(color, 0.055));
+      gradient.addColorStop(0.48, color);
+      gradient.addColorStop(1, darkenHex(color, 0.055));
+      context.fillStyle = gradient;
+      context.fillRect(x + 2, y + 2, plankWidth - 4, plankHeight - 4);
+
+      context.lineWidth = 1.2;
+      for (let grain = 0; grain < 4; grain += 1) {
+        const grainY = y + 11 + grain * 12 + ((row + column + grain) % 3) * 2;
+        context.strokeStyle = grain % 2 === 0
+          ? 'rgba(54, 35, 24, 0.16)'
+          : 'rgba(225, 192, 147, 0.1)';
+        context.beginPath();
+        context.moveTo(x + 10, grainY);
+        context.bezierCurveTo(
+          x + plankWidth * 0.32,
+          grainY + ((row + grain) % 2 === 0 ? 4 : -3),
+          x + plankWidth * 0.68,
+          grainY + ((column + grain) % 2 === 0 ? -3 : 4),
+          x + plankWidth - 10,
+          grainY + 1
+        );
+        context.stroke();
+      }
+
+      if ((row * 7 + column * 3) % 9 === 0) {
+        context.strokeStyle = 'rgba(52, 32, 20, 0.24)';
+        context.lineWidth = 2;
+        context.beginPath();
+        context.ellipse(x + plankWidth * 0.68, y + plankHeight * 0.55, 9, 4, 0, 0, Math.PI * 2);
+        context.stroke();
+      }
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(4.1, 3.35);
+  texture.anisotropy = Math.min(maxAnisotropy, 8);
+  texture.needsUpdate = true;
+  return new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    map: texture,
+    roughness: 0.84,
+    metalness: 0.015
+  });
+}
+
+function lightenHex(color: string, amount: number): string {
+  return shiftHexLightness(color, amount);
+}
+
+function darkenHex(color: string, amount: number): string {
+  return shiftHexLightness(color, -amount);
+}
+
+function shiftHexLightness(color: string, amount: number): string {
+  const source = new THREE.Color(color);
+  source.offsetHSL(0, 0, amount);
+  return `#${source.getHexString()}`;
+}
+
 function addBox(
   parent: THREE.Object3D,
   size: [number, number, number],
@@ -2900,7 +2986,13 @@ export class OfficeWorld {
   }
 
   private buildOffice(): void {
-    this.officeFloor = addBox(this.room, [19.8, 0.24, 12.8], [0, -0.15, 0], 0xc7b89d, { roughness: 0.96, castShadow: false });
+    this.officeFloor = new THREE.Mesh(
+      new THREE.BoxGeometry(19.8, 0.24, 12.8),
+      createWoodFloorMaterial(this.renderer.capabilities.getMaxAnisotropy())
+    );
+    this.officeFloor.position.set(0, -0.15, 0);
+    this.officeFloor.receiveShadow = true;
+    this.room.add(this.officeFloor);
     addBox(this.room, [19.8, 3.6, 0.16], [0, 1.67, -6.32], 0x203946, { castShadow: false });
     addBox(this.room, [0.16, 3.6, 12.8], [-9.82, 1.67, 0], 0x1a303b, { castShadow: false });
     addBox(this.room, [0.16, 3.6, 12.8], [9.82, 1.67, 0], 0x1a303b, { castShadow: false });

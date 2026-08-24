@@ -95,7 +95,7 @@ Ruční pohyb majitele má vždy prioritu. Po devíti sekundách nečinnosti, po
 ## Co už funguje
 
 - příkaz `Cursor Office: Open Office` otevře kancelář jako editorovou záložku,
-- vlastní procedurální low-poly budova s ředitelnou, pracovním studiem, debug laboratoří, lounge, zasedačkou, kuchyňkou a chodbami,
+- vlastní procedurální low-poly budova s ředitelnou, pracovním studiem, debug laboratoří, lounge, zasedačkou, kuchyňkou a chodbami; základ tvoří tlumená dřevěná podlaha s nepravidelnými odstíny prken, jemnou kresbou, spárami a nízkým leskem,
 - kompletní MedielSoft logo uprostřed lounge stěny naproti gauči a konferenčnímu stolku; originální PNG je uložen přímo mezi lokálními assety aplikace a vykresluje se celé, bez ořezu nebo změny barev, jako transparentní nástěnná malba se zeleným kruhem a bílým nápisem — při změně kamery zachovává polohu a přirozeně přebírá perspektivu stěny,
 - majitel kanceláře se jménem z lokálního systému nebo z nastavení,
 - volná pozorovací kamera: levým tažením změna úhlu, tažením stisknutého kolečka nebo pravého tlačítka posun po kanceláři, kolečkem zoom, WASD přesun pohledu, Q/E otočení a `Home` reset; pozice i cíl kamery se uchovávají,
