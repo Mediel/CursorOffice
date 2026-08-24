@@ -27,7 +27,9 @@ Workspace nebo repozitář je organizační kontext, nikoli automaticky další 
 
 ### Role a stav používají dvě barvy
 
-Stálý malý odznak na hrudi vyjadřuje roli: majitel je zlatý, manažer tyrkysový, hlavní chat/senior modrý a subagent fialový. Proměnná barva trupu, světelného kruhu, jmenovky a stavového textu vyjadřuje výhradně lifecycle stav podle tabulky níže. Spodní legenda i avatary v týmovém panelu používají stejnou mapu. Barvy místností již nejsou vydávány za role ani za stav postavy.
+Stálá barva košile a malého odznaku na hrudi vyjadřuje roli: majitel je zlatý, manažer tyrkysový, hlavní chat/senior modrý a subagent fialový. Odstín košile se podle stabilní identity mírně liší, ale zůstává ve své rolové barevné rodině. Proměnná barva světelného kruhu, jmenovky a stavového textu vyjadřuje výhradně lifecycle stav podle tabulky níže. Spodní legenda i avatary v týmovém panelu používají stejnou mapu. Barvy místností již nejsou vydávány za role ani za stav postavy.
+
+Vzhled postavy se deterministicky odvozuje z její stabilní identity. Postavy proto mohou být nižší, vyšší, štíhlé, běžné, širší, podsadité nebo atletické a používají různé odstíny pokožky a vlasů. Účesy zahrnují pleš, velmi krátké a krátké vlasy, pěšinku, bob, delší vlasy, kudrny, drdol a mohykán. Stejná identita dostane po reloadu stejný vzhled; rozměrové odchylky jsou omezené tak, aby zůstala zachována navigace, sezení a průchod dveřmi.
 
 ### Jedno okno a více chatů
 

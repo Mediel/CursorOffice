@@ -5,7 +5,8 @@ import {
   statusLabels,
   visualRoleFor,
   type AgentSnapshot,
-  type AgentStatus
+  type AgentStatus,
+  type AgentVisualRole
 } from '../contracts';
 import { colorToCss } from '../ui/dom';
 import { CharacterStateMachine, type CharacterVisualState } from './CharacterStateMachine';
@@ -28,10 +29,206 @@ export type CharacterDescriptor = {
   color: number;
   isOwner: boolean;
   kind?: 'primary' | 'subagent';
+  visualRole?: AgentVisualRole;
+  appearanceKey?: string;
 };
 
 function standardMaterial(color: number, roughness = 0.76): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({ color, roughness, metalness: 0.04 });
+}
+
+type HairStyle = 'bald' | 'buzz' | 'short' | 'sidePart' | 'bob' | 'long' | 'curly' | 'bun' | 'mohawk';
+type CharacterAppearance = {
+  hairStyle: HairStyle;
+  hairColor: number;
+  skinColor: number;
+  widthScale: number;
+  heightScale: number;
+  depthScale: number;
+};
+
+const hairColors = [
+  0x171412,
+  0x30231d,
+  0x513426,
+  0x75452c,
+  0x9b5c36,
+  0xb98b56,
+  0xd5c49a,
+  0x85878d,
+  0x4b385f
+] as const;
+
+const skinColors = [
+  0xf2c9aa,
+  0xe8b991,
+  0xdca27c,
+  0xc48661,
+  0xa9694b,
+  0x855139,
+  0x603b2d
+] as const;
+
+const hairStyles: readonly HairStyle[] = [
+  'bald',
+  'buzz',
+  'short',
+  'sidePart',
+  'bob',
+  'long',
+  'curly',
+  'bun',
+  'mohawk'
+];
+
+const bodyBuilds = [
+  { width: 0.88, height: 1.01, depth: 0.92 },
+  { width: 0.96, height: 1, depth: 0.97 },
+  { width: 1, height: 1, depth: 1 },
+  { width: 1.1, height: 1.02, depth: 1.04 },
+  { width: 1.15, height: 0.96, depth: 1.12 },
+  { width: 1.12, height: 1.05, depth: 1.01 }
+] as const;
+
+function stableHash(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function stableUnit(value: string): number {
+  return stableHash(value) / 0xffffffff;
+}
+
+function stablePick<T>(values: readonly T[], seed: string): T {
+  return values[stableHash(seed) % values.length];
+}
+
+function createAppearance(seed: string, isOwner: boolean): CharacterAppearance {
+  const build = isOwner
+    ? bodyBuilds[2]
+    : stablePick(bodyBuilds, `${seed}:build`);
+  const heightVariation = isOwner
+    ? 1
+    : 0.92 + stableUnit(`${seed}:height`) * 0.18;
+  return {
+    hairStyle: isOwner ? 'short' : stablePick(hairStyles, `${seed}:hair-style`),
+    hairColor: isOwner ? 0x4a3124 : stablePick(hairColors, `${seed}:hair-color`),
+    skinColor: isOwner ? 0xe8b991 : stablePick(skinColors, `${seed}:skin-color`),
+    widthScale: build.width,
+    heightScale: THREE.MathUtils.clamp(build.height * heightVariation, 0.9, 1.12),
+    depthScale: build.depth
+  };
+}
+
+function roleShirtColor(role: AgentVisualRole, seed: string, ownerColor?: number): number {
+  const color = new THREE.Color(role === 'owner' && ownerColor !== undefined
+    ? ownerColor
+    : roleColors[role]);
+  if (role !== 'owner') {
+    color.offsetHSL(
+      (stableUnit(`${seed}:shirt-hue`) - 0.5) * 0.025,
+      (stableUnit(`${seed}:shirt-saturation`) - 0.5) * 0.06,
+      (stableUnit(`${seed}:shirt-lightness`) - 0.5) * 0.09
+    );
+  }
+  return color.getHex();
+}
+
+function addHairPart(
+  group: THREE.Group,
+  geometry: THREE.BufferGeometry,
+  material: THREE.MeshStandardMaterial,
+  position: readonly [number, number, number],
+  scale: readonly [number, number, number] = [1, 1, 1],
+  rotation: readonly [number, number, number] = [0, 0, 0]
+): void {
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.position.set(...position);
+  mesh.scale.set(...scale);
+  mesh.rotation.set(...rotation);
+  mesh.castShadow = true;
+  group.add(mesh);
+}
+
+function createHair(style: HairStyle, color: number): THREE.Group {
+  const hair = new THREE.Group();
+  if (style === 'bald') {
+    return hair;
+  }
+  const material = standardMaterial(color, 0.9);
+  const addCap = (height = 0.74): void => addHairPart(
+    hair,
+    new THREE.SphereGeometry(0.248, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.52),
+    material,
+    [0, 0.048, 0],
+    [1, height, 1]
+  );
+
+  if (style === 'buzz') {
+    addCap(0.44);
+  } else if (style === 'short') {
+    addCap(0.72);
+  } else if (style === 'sidePart') {
+    addCap(0.76);
+    addHairPart(
+      hair,
+      new THREE.SphereGeometry(0.105, 12, 8),
+      material,
+      [-0.105, 0.13, 0.15],
+      [1.35, 0.48, 0.62],
+      [0, 0, -0.18]
+    );
+  } else if (style === 'bob') {
+    addCap(0.8);
+    for (const x of [-0.205, 0.205]) {
+      addHairPart(
+        hair,
+        new THREE.CapsuleGeometry(0.07, 0.22, 4, 8),
+        material,
+        [x, -0.09, -0.015],
+        [0.82, 1, 0.9]
+      );
+    }
+  } else if (style === 'long') {
+    addCap(0.82);
+    for (const x of [-0.15, 0.15]) {
+      addHairPart(
+        hair,
+        new THREE.CapsuleGeometry(0.085, 0.4, 5, 9),
+        material,
+        [x, -0.21, -0.13],
+        [1, 1, 0.9]
+      );
+    }
+  } else if (style === 'curly') {
+    const curls: readonly [number, number, number, number][] = [
+      [-0.16, 0.11, -0.08, 0.105], [0, 0.17, -0.1, 0.115], [0.16, 0.11, -0.08, 0.105],
+      [-0.18, 0.09, 0.07, 0.1], [0, 0.2, 0.04, 0.12], [0.18, 0.09, 0.07, 0.1],
+      [-0.1, 0.13, 0.17, 0.095], [0.1, 0.13, 0.17, 0.095], [0, 0.08, -0.2, 0.1]
+    ];
+    for (const [x, y, z, radius] of curls) {
+      addHairPart(hair, new THREE.SphereGeometry(radius, 10, 7), material, [x, y, z]);
+    }
+  } else if (style === 'bun') {
+    addCap(0.78);
+    addHairPart(hair, new THREE.SphereGeometry(0.13, 12, 9), material, [0, 0.105, -0.22]);
+  } else {
+    addCap(0.38);
+    for (const z of [-0.16, -0.08, 0, 0.08, 0.16]) {
+      addHairPart(
+        hair,
+        new THREE.ConeGeometry(0.055, 0.17, 8),
+        material,
+        [0, 0.26, z],
+        [1, 1 - Math.abs(z) * 1.6, 1]
+      );
+    }
+  }
+  return hair;
 }
 
 export function createTextSprite(text: string, accent: string, subtitle?: string): THREE.Sprite {
@@ -274,6 +471,7 @@ export class CharacterController {
   private labelHovered = false;
   private labelExpandedUntil = 0;
   private conversationMode: CharacterConversationMode | undefined;
+  private readonly appearanceKey: string;
 
   public constructor(private readonly descriptor: CharacterDescriptor) {
     this.group.name = descriptor.id;
@@ -281,8 +479,22 @@ export class CharacterController {
     this.group.add(this.actor);
     this.actor.add(this.body);
     this.status = descriptor.isOwner ? 'owner' : 'unknown';
+    this.appearanceKey = descriptor.appearanceKey ?? descriptor.id;
+    const appearance = createAppearance(this.appearanceKey, descriptor.isOwner);
+    this.body.scale.set(appearance.widthScale, appearance.heightScale, appearance.depthScale);
+    const initialRole = descriptor.visualRole
+      ?? (descriptor.isOwner
+        ? 'owner'
+        : descriptor.id.startsWith('cursor-window-manager-')
+          ? 'manager'
+          : descriptor.kind === 'subagent'
+            ? 'subagent'
+            : 'chat');
 
-    this.torsoMaterial = standardMaterial(descriptor.color, 0.63);
+    this.torsoMaterial = standardMaterial(
+      roleShirtColor(initialRole, this.appearanceKey, descriptor.isOwner ? descriptor.color : undefined),
+      0.63
+    );
     const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.25, 0.46, 6, 10), this.torsoMaterial);
     torso.position.y = 0.79;
     torso.castShadow = true;
@@ -311,7 +523,7 @@ export class CharacterController {
       this.legPivots.push(pivot);
     }
 
-    const skinMaterial = standardMaterial(0xe8b991, 0.82);
+    const skinMaterial = standardMaterial(appearance.skinColor, 0.82);
     this.coffeeCup = new THREE.Group();
     this.coffeeCup.visible = false;
     const cupBody = new THREE.Mesh(
@@ -353,13 +565,7 @@ export class CharacterController {
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 18, 14), skinMaterial);
     head.castShadow = true;
     this.headPivot.add(head);
-    const hair = new THREE.Mesh(
-      new THREE.SphereGeometry(0.245, 18, 10, 0, Math.PI * 2, 0, Math.PI * 0.48),
-      standardMaterial(descriptor.isOwner ? 0x4a3124 : 0x263038, 0.9)
-    );
-    hair.position.y = 0.05;
-    hair.castShadow = true;
-    this.headPivot.add(hair);
+    this.headPivot.add(createHair(appearance.hairStyle, appearance.hairColor));
 
     const faceMaterial = standardMaterial(0x17232b, 0.86);
     for (const x of [-0.082, 0.082]) {
@@ -373,7 +579,6 @@ export class CharacterController {
     this.headPivot.add(this.mouth);
 
     if (!descriptor.isOwner) {
-      const initialRole = descriptor.id.startsWith('cursor-window-manager-') ? 'manager' : 'chat';
       this.roleBadgeMaterial = standardMaterial(roleColors[initialRole], 0.5);
       this.roleBadgeMaterial.emissive.setHex(roleColors[initialRole]);
       this.roleBadgeMaterial.emissiveIntensity = 0.42;
@@ -490,7 +695,6 @@ export class CharacterController {
       this.updateEmotion(state);
     }
     this.status = state;
-    this.torsoMaterial.color.setHex(color);
     this.ringMaterial.color.setHex(color);
     this.ringMaterial.emissive.setHex(color);
   }
@@ -537,7 +741,9 @@ export class CharacterController {
     if (this.descriptor.isOwner) {
       return;
     }
-    const roleColor = roleColors[visualRoleFor(snapshot)];
+    const visualRole = visualRoleFor(snapshot);
+    const roleColor = roleColors[visualRole];
+    this.torsoMaterial.color.setHex(roleShirtColor(visualRole, this.appearanceKey));
     this.roleBadgeMaterial?.color.setHex(roleColor);
     this.roleBadgeMaterial?.emissive.setHex(roleColor);
     const isManager = snapshot.id.startsWith('cursor-window-manager-');

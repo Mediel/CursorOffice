@@ -56,16 +56,16 @@ export class OfficeHud {
         </aside>
 
         <footer class="office-footer glass-card">
-          <span class="legend-group" aria-label="Role postav podle stálého odznaku">
-            <b class="legend-title">ROLE · ODZNAK</b>
+          <span class="legend-group" aria-label="Role postav podle stálé barvy košile a odznaku">
+            <b class="legend-title">ROLE · KOŠILE / ODZNAK</b>
             <span><i class="legend-dot role-dot" style="--legend-color: ${colorToCss(roleColors.owner)}"></i>Majitel</span>
             <span><i class="legend-dot role-dot" style="--legend-color: ${colorToCss(roleColors.manager)}"></i>Manažer</span>
             <span><i class="legend-dot role-dot" style="--legend-color: ${colorToCss(roleColors.chat)}"></i>Chat / senior</span>
             <span><i class="legend-dot role-dot" style="--legend-color: ${colorToCss(roleColors.subagent)}"></i>Subagent</span>
           </span>
           <span class="legend-separator" aria-hidden="true"></span>
-          <span class="legend-group" aria-label="Stav podle barvy postavy a kruhu">
-            <b class="legend-title">STAV · POSTAVA / KRUH</b>
+          <span class="legend-group" aria-label="Runtime stav podle barvy světelného kruhu">
+            <b class="legend-title">STAV · KRUH</b>
             <span><i class="legend-dot status-dot" style="--legend-color: ${colorToCss(statusColors.unknown)}"></i>Neznámý</span>
             <span><i class="legend-dot status-dot" style="--legend-color: ${colorToCss(statusColors.idle)}"></i>Volný</span>
             <span><i class="legend-dot status-dot" style="--legend-color: ${colorToCss(statusColors.working)}"></i>Pracuje</span>

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type { AgentSnapshot, OfficeBootstrap, OfficeOwner } from '../contracts';
-import { statusColors } from '../contracts';
+import { statusColors, visualRoleFor } from '../contracts';
 import {
   CharacterController,
   createTextSprite,
@@ -631,7 +631,9 @@ export class OfficeWorld {
       displayName: owner.displayName,
       role: owner.role,
       color,
-      isOwner: true
+      isOwner: true,
+      visualRole: 'owner',
+      appearanceKey: `owner:${owner.displayName}`
     });
     this.ownerDescriptorKey = descriptorKey;
     const persistedPosition = this.persistedState.ownerPosition
@@ -734,7 +736,9 @@ export class OfficeWorld {
           role: agent.role,
           color: statusColors[agent.status],
           isOwner: false,
-          kind: agent.kind
+          kind: agent.kind,
+          visualRole: visualRoleFor(agent),
+          appearanceKey: appearanceKeyFor(agent)
         });
         controller.setPosition(spawnPoint(index));
         this.agents.set(agent.id, controller);
@@ -2880,6 +2884,13 @@ function logicalAgentIdentity(snapshot: AgentSnapshot): string {
     || snapshot.windowLabel?.split('·')[0]?.trim()
     || snapshot.id;
   return value.replace(/[\\/]+$/gu, '').toLocaleLowerCase('cs');
+}
+
+function appearanceKeyFor(snapshot: AgentSnapshot): string {
+  const role = visualRoleFor(snapshot);
+  return role === 'manager'
+    ? `${role}:${logicalAgentIdentity(snapshot)}`
+    : `${role}:${snapshot.id}`;
 }
 
 function encounterReferences(encounter: SocialEncounter, id: string): boolean {

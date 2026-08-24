@@ -101,7 +101,7 @@ Ruční pohyb majitele má vždy prioritu. Po devíti sekundách nečinnosti, po
 - volná pozorovací kamera: levým tažením změna úhlu, tažením stisknutého kolečka nebo pravého tlačítka posun po kanceláři, kolečkem zoom, WASD přesun pohledu, Q/E otočení a `Home` reset; pozice i cíl kamery se uchovávají,
 - kliknutí na volnou podlahu pošle majitele na místo bez předchozího výběru; po výběru majitele řídí WASD jeho postavu včetně plné animace chůze a `Esc` vrací klávesy kameře,
 - výběr postavy, detail agenta, týmový panel a souhrn stavů,
-- jednotná dvouvrstvá legenda: stálá barva odznaku rozlišuje majitele, manažera okna, hlavní chat/seniora a subagenta, zatímco proměnná barva těla a kruhu vždy znamená runtime stav,
+- jednotná dvouvrstvá legenda: stálá barva košile a odznaku rozlišuje majitele, manažera okna, hlavní chat/seniora a subagenta, zatímco proměnná barva světelného kruhu a jmenovky znamená runtime stav; postavy mají deterministicky různou výšku, stavbu těla, odstín pokožky, barvu vlasů a účes včetně plešatých variant,
 - kompaktní jmenovky nad postavami; po najetí na postavu nebo jméno se plynule rozbalí stav, model, aktuální činnost a přesně zaznamenané tokeny poslední generace, po odjetí zůstanou krátce otevřené a u vybrané postavy trvale,
 - vlastní deklarativní stavový automat postav s plynulým sednutím/vstáváním, prací u klávesnice, hovorem, nasloucháním, rozhlížením, máváním, protažením, pitím kávy, oslavou a chybovou emocí,
 - výrazné upozornění `waitingForUser`: skutečný chat/senior nebo subagent stojí, natočí se k majiteli, podívá se vzhůru a periodicky zamává oběma rukama nad hlavou; manažer okna pouze agreguje stav a gesto neopakuje,
