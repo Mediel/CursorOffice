@@ -185,16 +185,6 @@ function createHair(style: HairStyle, color: number): THREE.Group {
     // A sculpted, swept side part reads as hair from the high office camera.
     // The old owner cap looked like a flat circular patch when viewed from above.
     addCap(0.82);
-    for (const x of [-0.19, 0.19]) {
-      addHairPart(
-        hair,
-        new THREE.CapsuleGeometry(0.057, 0.2, 4, 10),
-        material,
-        [x, -0.035, -0.015],
-        [0.82, 1, 0.92],
-        [0.06, 0, x < 0 ? -0.08 : 0.08]
-      );
-    }
     const sweptFront: readonly [number, number, number, number, number][] = [
       [-0.135, 0.145, 0.145, 1.22, -0.28],
       [-0.025, 0.178, 0.16, 1.16, -0.2],
@@ -258,6 +248,54 @@ function createHair(style: HairStyle, color: number): THREE.Group {
     }
   }
   return hair;
+}
+
+function createShirtNameBadge(displayName: string): THREE.Group {
+  const badge = new THREE.Group();
+  const backing = new THREE.Mesh(
+    new THREE.BoxGeometry(0.27, 0.115, 0.028),
+    standardMaterial(0xe8ecee, 0.42)
+  );
+  backing.castShadow = true;
+  badge.add(backing);
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 384;
+  canvas.height = 144;
+  const context = canvas.getContext('2d');
+  if (!context) {
+    throw new Error('2D canvas is unavailable.');
+  }
+  context.fillStyle = '#ffffff';
+  context.beginPath();
+  context.roundRect(4, 4, canvas.width - 8, canvas.height - 8, 14);
+  context.fill();
+  context.strokeStyle = '#aeb8bd';
+  context.lineWidth = 7;
+  context.stroke();
+
+  const normalizedName = displayName.trim() || 'AGENT';
+  let fontSize = 43;
+  do {
+    context.font = `800 ${fontSize}px Segoe UI, Arial, sans-serif`;
+    fontSize -= 2;
+  } while (fontSize > 21 && context.measureText(normalizedName).width > canvas.width - 42);
+  context.fillStyle = '#17232b';
+  context.textAlign = 'center';
+  context.textBaseline = 'middle';
+  context.fillText(normalizedName, canvas.width / 2, canvas.height / 2 + 1, canvas.width - 40);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  const face = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.252, 0.097),
+    new THREE.MeshBasicMaterial({ map: texture, toneMapped: false })
+  );
+  face.position.z = 0.015;
+  badge.add(face);
+  return badge;
 }
 
 export function createTextSprite(text: string, accent: string, subtitle?: string): THREE.Sprite {
@@ -471,7 +509,6 @@ export class CharacterController {
   private readonly eyes: THREE.Mesh[] = [];
   private readonly mouth: THREE.Mesh;
   private readonly coffeeCup: THREE.Group;
-  private roleBadgeMaterial: THREE.MeshStandardMaterial | undefined;
   private readonly emotionSprite: THREE.Sprite;
   private blinkCountdown = 2 + Math.random() * 3;
   private blinkRemaining = 0;
@@ -611,13 +648,9 @@ export class CharacterController {
     this.headPivot.add(this.mouth);
 
     if (!descriptor.isOwner) {
-      this.roleBadgeMaterial = standardMaterial(roleColors[initialRole], 0.5);
-      this.roleBadgeMaterial.emissive.setHex(roleColors[initialRole]);
-      this.roleBadgeMaterial.emissiveIntensity = 0.42;
-      const badge = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.17, 0.03), this.roleBadgeMaterial);
-      badge.position.set(0.14, 0.88, 0.236);
-      badge.rotation.z = -0.08;
-      this.body.add(badge);
+      const shirtNameBadge = createShirtNameBadge(descriptor.displayName);
+      shirtNameBadge.position.set(0.08, 0.9, 0.238);
+      this.body.add(shirtNameBadge);
     }
 
     this.groundShadow = new THREE.Mesh(
@@ -788,10 +821,7 @@ export class CharacterController {
       return;
     }
     const visualRole = visualRoleFor(snapshot);
-    const roleColor = roleColors[visualRole];
     this.torsoMaterial.color.setHex(roleShirtColor(visualRole, this.appearanceKey));
-    this.roleBadgeMaterial?.color.setHex(roleColor);
-    this.roleBadgeMaterial?.emissive.setHex(roleColor);
     const isManager = snapshot.id.startsWith('cursor-window-manager-');
     const teamModels = snapshot.teamModels?.filter(Boolean) ?? [];
     const model = isManager
@@ -928,7 +958,10 @@ export class CharacterController {
       if (object instanceof THREE.Mesh) {
         object.geometry.dispose();
         const materials = Array.isArray(object.material) ? object.material : [object.material];
-        materials.forEach(material => material.dispose());
+        materials.forEach(material => {
+          material.map?.dispose();
+          material.dispose();
+        });
       }
       if (object instanceof THREE.Sprite) {
         object.material.map?.dispose();

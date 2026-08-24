@@ -56,8 +56,8 @@ export class OfficeHud {
         </aside>
 
         <footer class="office-footer glass-card">
-          <span class="legend-group" aria-label="Role postav podle stálé barvy košile a odznaku">
-            <b class="legend-title">ROLE · KOŠILE / ODZNAK</b>
+          <span class="legend-group" aria-label="Role postav podle stálé barvy košile">
+            <b class="legend-title">ROLE · KOŠILE</b>
             <span><i class="legend-dot role-dot" style="--legend-color: ${colorToCss(roleColors.owner)}"></i>Majitel</span>
             <span><i class="legend-dot role-dot" style="--legend-color: ${colorToCss(roleColors.manager)}"></i>Manažer</span>
             <span><i class="legend-dot role-dot" style="--legend-color: ${colorToCss(roleColors.chat)}"></i>Chat / senior</span>

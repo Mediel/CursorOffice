@@ -113,7 +113,7 @@ export const statusLabels: Record<AgentStatus, string> = {
   offline: 'Offline'
 };
 
-/** Role is the permanent shirt/badge color; runtime status uses the selection ring and labels. */
+/** Role is the permanent shirt color; runtime status uses the selection ring and labels. */
 export const roleColors: Record<AgentVisualRole, number> = {
   owner: 0x32c477,
   manager: 0x43b9c8,
