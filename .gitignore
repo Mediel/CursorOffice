@@ -1,0 +1,44 @@
+# Visual Studio / .NET
+.vs/
+.vscode/
+.cursor/
+**/bin/
+**/obj/
+TestResults/
+coverage/
+*.user
+*.suo
+*.pfx
+*.snk
+*.pem
+*.key
+
+# Node / TypeScript
+node_modules/
+**/node_modules/
+.pnpm-store/
+**/dist/
+*.tsbuildinfo
+
+# Generated extension artifacts
+src/CursorOffice.Extension/media/
+src/CursorOffice.Extension/host/
+src/CursorOffice.Extension/bridge/
+*.vsix
+
+# Local configuration and logs
+.env
+.env.*
+!.env.example
+appsettings.Development.json
+appsettings.Local.json
+secrets*.json
+*.log
+artifacts/
+*.sqlite
+*.sqlite3
+
+# Operating systems and IDEs
+.DS_Store
+Thumbs.db
+.idea/

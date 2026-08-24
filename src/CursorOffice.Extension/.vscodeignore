@@ -1,0 +1,8 @@
+src/**
+node_modules/**
+*.esproj
+tsconfig.json
+esbuild.mjs
+host/**/*.pdb
+bridge/**/*.pdb
+**/*.map

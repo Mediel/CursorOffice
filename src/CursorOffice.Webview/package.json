@@ -1,0 +1,23 @@
+{
+  "name": "@cursor-office/webview",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "check": "tsc --noEmit",
+    "clean": "node -e \"require('node:fs').rmSync('../CursorOffice.Extension/media',{recursive:true,force:true})\""
+  },
+  "dependencies": {
+    "three": "^0.179.0"
+  },
+  "devDependencies": {
+    "@types/three": "^0.179.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.1.0"
+  }
+}

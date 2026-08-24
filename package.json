@@ -1,0 +1,15 @@
+{
+  "name": "cursor-office-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "assets:validate": "node scripts/validate-assets.mjs",
+    "build": "pnpm assets:validate && pnpm --filter @cursor-office/webview build && pnpm --filter cursor-office build",
+    "check": "pnpm assets:validate && pnpm -r check",
+    "clean": "pnpm -r clean"
+  }
+}

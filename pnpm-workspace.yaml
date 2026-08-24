@@ -1,0 +1,12 @@
+packages:
+  - src/CursorOffice.Extension
+  - src/CursorOffice.Webview
+
+onlyBuiltDependencies:
+  - esbuild
+
+confirmModulesPurge: false
+allowBuilds:
+  '@vscode/vsce-sign': false
+  esbuild: true
+  keytar: false

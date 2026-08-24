@@ -1,0 +1,40 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".editorconfig" />
+    <File Path=".gitignore" />
+    <File Path="CONTRIBUTING.md" />
+    <File Path="Directory.Build.props" />
+    <File Path="global.json" />
+    <File Path="package.json" />
+    <File Path="pnpm-workspace.yaml" />
+    <File Path="README.md" />
+    <File Path="scripts/validate-assets.mjs" />
+  </Folder>
+  <Folder Name="/docs/">
+    <File Path="docs/architecture.md" />
+    <File Path="docs/development.md" />
+    <File Path="docs/cursor-integration.md" />
+    <File Path="docs/protocol.md" />
+    <File Path="docs/roadmap.md" />
+    <File Path="docs/3d-pipeline.md" />
+    <File Path="docs/visual-parity.md" />
+  </Folder>
+  <Folder Name="/docs/adr/">
+    <File Path="docs/adr/0001-hybrid-dotnet-typescript.md" />
+  </Folder>
+  <Folder Name="/src/" />
+  <Folder Name="/src/dotnet/">
+    <Project Path="src/CursorOffice.Application/CursorOffice.Application.csproj" />
+    <Project Path="src/CursorOffice.Core/CursorOffice.Core.csproj" />
+    <Project Path="src/CursorOffice.Host/CursorOffice.Host.csproj" />
+    <Project Path="src/CursorOffice.Hook/CursorOffice.Hook.csproj" />
+    <Project Path="src/CursorOffice.Infrastructure/CursorOffice.Infrastructure.csproj" />
+  </Folder>
+  <Folder Name="/src/typescript/">
+    <Project Path="src/CursorOffice.Extension/CursorOffice.Extension.esproj" />
+    <Project Path="src/CursorOffice.Webview/CursorOffice.Webview.esproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/CursorOffice.Core.Tests/CursorOffice.Core.Tests.csproj" />
+  </Folder>
+</Solution>

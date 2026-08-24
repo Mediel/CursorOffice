@@ -1,0 +1,10 @@
+{
+  "$comment": "Zkopírujte pod názvem odpovídajícím assets/runtime, například office/main.asset.json.",
+  "id": "example-owned-asset",
+  "author": "Cursor Office contributors",
+  "source": "Original Blender source in assets/source",
+  "license": "Proprietary project asset",
+  "triangles": 0,
+  "textures": [],
+  "exportedAt": "2026-08-21T00:00:00Z"
+}
