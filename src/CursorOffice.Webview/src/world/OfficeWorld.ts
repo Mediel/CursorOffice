@@ -2773,14 +2773,24 @@ export class OfficeWorld {
     machineLight.position.set(0.31, 1.43, -0.35);
     kitchen.add(machineLight);
     this.coffeeMachineLight = machineLight;
-    const sink = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.21, 0.21, 0.025, 20),
-      standardMaterial(0x526a73, 0.24)
+    const sink = new THREE.Group();
+    sink.position.set(0.04, 0, 0.45);
+    const sinkBasin = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.19, 0.145, 0.07, 24),
+      standardMaterial(0x40555f, 0.22)
     );
-    sink.position.set(0.26, 0.98, 0.45);
+    sinkBasin.position.y = 0.95;
+    sinkBasin.receiveShadow = true;
+    const sinkRim = new THREE.Mesh(
+      new THREE.TorusGeometry(0.205, 0.022, 8, 24),
+      standardMaterial(0x738992, 0.2)
+    );
+    sinkRim.rotation.x = Math.PI / 2;
+    sinkRim.position.y = 0.985;
+    sink.add(sinkBasin, sinkRim);
     kitchen.add(sink);
-    addBox(kitchen, [0.08, 0.35, 0.08], [0.35, 1.18, 0.7], 0x637a84, { roughness: 0.26 });
-    addBox(kitchen, [0.2, 0.07, 0.07], [0.44, 1.34, 0.7], 0x637a84, { roughness: 0.26 });
+    addBox(kitchen, [0.08, 0.35, 0.08], [-0.17, 1.18, 0.45], 0x637a84, { roughness: 0.26 });
+    addBox(kitchen, [0.28, 0.07, 0.07], [-0.05, 1.34, 0.45], 0x637a84, { roughness: 0.26 });
     const waterStream = new THREE.Mesh(
       new THREE.CylinderGeometry(0.014, 0.019, 0.27, 8),
       new THREE.MeshStandardMaterial({
@@ -2791,7 +2801,7 @@ export class OfficeWorld {
         opacity: 0
       })
     );
-    waterStream.position.set(0.44, 1.16, 0.66);
+    waterStream.position.set(0.075, 1.16, 0.45);
     waterStream.visible = false;
     kitchen.add(waterStream);
     this.kitchenWaterStream = waterStream;
