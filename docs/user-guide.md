@@ -95,8 +95,8 @@ Detail podle dostupných dat ukazuje stav, roli, workspace, chat, aktuální ná
 
 Spodní legenda odděluje dvě různé informace:
 
-- **Role / košile a odznak na hrudi:** zlatý majitel, tyrkysový manažer Cursor okna, modrý hlavní chat nebo senior a fialový programátor/subagent. Mírně odlišné odstíny v rámci jedné barevné rodiny pouze rozlišují jednotlivé postavy.
-- **Vzhled:** výška, stavba těla, odstín pokožky, barva vlasů a účes jsou různorodé, ale pro stejnou identitu stabilní i po reloadu.
+- **Role / košile a odznak na hrudi:** zelený majitel, tyrkysový manažer Cursor okna, modrý hlavní chat nebo senior a fialový programátor/subagent. Mírně odlišné odstíny v rámci jedné barevné rodiny pouze rozlišují jednotlivé postavy. Majitele odlišuje zlatá jmenovka; postava nenosí korunu.
+- **Vzhled:** výška, stavba těla, odstín pokožky, barva vlasů a účes jsou různorodé, ale pro stejnou identitu stabilní i po reloadu. Majitel má ve výchozím profilu upravený tmavý účes s pěšinkou a patkou.
 - **Stav / tělo a kruh:** šedý neznámý, modrý volný, zelený pracující, žlutý čekající na uživatele, červený problém, fialový hotový a tmavě šedý offline.
 
 Role se během života postavy nemění kromě prezentačního povýšení hlavního chatu na seniora, které používá stejnou modrou kategorii. Stav se naopak mění průběžně. Stejné rozdělení používají barevné avatary a stavové popisky v týmovém panelu.

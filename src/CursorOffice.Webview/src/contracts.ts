@@ -115,7 +115,7 @@ export const statusLabels: Record<AgentStatus, string> = {
 
 /** Role is the permanent shirt/badge color; runtime status uses the selection ring and labels. */
 export const roleColors: Record<AgentVisualRole, number> = {
-  owner: 0xf4b85c,
+  owner: 0x32c477,
   manager: 0x43b9c8,
   chat: 0x4da3ff,
   subagent: 0xb084ff

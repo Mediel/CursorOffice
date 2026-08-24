@@ -38,7 +38,7 @@ function standardMaterial(color: number, roughness = 0.76): THREE.MeshStandardMa
   return new THREE.MeshStandardMaterial({ color, roughness, metalness: 0.04 });
 }
 
-type HairStyle = 'bald' | 'buzz' | 'short' | 'sidePart' | 'bob' | 'long' | 'curly' | 'bun' | 'mohawk';
+type HairStyle = 'bald' | 'buzz' | 'short' | 'sidePart' | 'executive' | 'bob' | 'long' | 'curly' | 'bun' | 'mohawk';
 type CharacterAppearance = {
   hairStyle: HairStyle;
   hairColor: number;
@@ -116,8 +116,8 @@ function createAppearance(seed: string, isOwner: boolean): CharacterAppearance {
     ? 1
     : 0.92 + stableUnit(`${seed}:height`) * 0.18;
   return {
-    hairStyle: isOwner ? 'short' : stablePick(hairStyles, `${seed}:hair-style`),
-    hairColor: isOwner ? 0x4a3124 : stablePick(hairColors, `${seed}:hair-color`),
+    hairStyle: isOwner ? 'executive' : stablePick(hairStyles, `${seed}:hair-style`),
+    hairColor: isOwner ? 0x3d281f : stablePick(hairColors, `${seed}:hair-color`),
     skinColor: isOwner ? 0xe8b991 : stablePick(skinColors, `${seed}:skin-color`),
     widthScale: build.width,
     heightScale: THREE.MathUtils.clamp(build.height * heightVariation, 0.9, 1.12),
@@ -125,10 +125,8 @@ function createAppearance(seed: string, isOwner: boolean): CharacterAppearance {
   };
 }
 
-function roleShirtColor(role: AgentVisualRole, seed: string, ownerColor?: number): number {
-  const color = new THREE.Color(role === 'owner' && ownerColor !== undefined
-    ? ownerColor
-    : roleColors[role]);
+function roleShirtColor(role: AgentVisualRole, seed: string): number {
+  const color = new THREE.Color(roleColors[role]);
   if (role !== 'owner') {
     color.offsetHSL(
       (stableUnit(`${seed}:shirt-hue`) - 0.5) * 0.025,
@@ -183,6 +181,36 @@ function createHair(style: HairStyle, color: number): THREE.Group {
       [1.35, 0.48, 0.62],
       [0, 0, -0.18]
     );
+  } else if (style === 'executive') {
+    // A sculpted, swept side part reads as hair from the high office camera.
+    // The old owner cap looked like a flat circular patch when viewed from above.
+    addCap(0.82);
+    for (const x of [-0.19, 0.19]) {
+      addHairPart(
+        hair,
+        new THREE.CapsuleGeometry(0.057, 0.2, 4, 10),
+        material,
+        [x, -0.035, -0.015],
+        [0.82, 1, 0.92],
+        [0.06, 0, x < 0 ? -0.08 : 0.08]
+      );
+    }
+    const sweptFront: readonly [number, number, number, number, number][] = [
+      [-0.135, 0.145, 0.145, 1.22, -0.28],
+      [-0.025, 0.178, 0.16, 1.16, -0.2],
+      [0.085, 0.16, 0.15, 1.05, -0.12],
+      [0.17, 0.125, 0.125, 0.9, -0.04]
+    ];
+    for (const [x, y, z, width, rotationZ] of sweptFront) {
+      addHairPart(
+        hair,
+        new THREE.SphereGeometry(0.096, 12, 8),
+        material,
+        [x, y, z],
+        [width, 0.58, 0.7],
+        [0, 0, rotationZ]
+      );
+    }
   } else if (style === 'bob') {
     addCap(0.8);
     for (const x of [-0.205, 0.205]) {
@@ -494,7 +522,7 @@ export class CharacterController {
             : 'chat');
 
     this.torsoMaterial = standardMaterial(
-      roleShirtColor(initialRole, this.appearanceKey, descriptor.isOwner ? descriptor.color : undefined),
+      roleShirtColor(initialRole, this.appearanceKey),
       0.63
     );
     const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.25, 0.46, 6, 10), this.torsoMaterial);
@@ -611,17 +639,14 @@ export class CharacterController {
     this.selectionRing.position.y = 0.025;
     this.group.add(this.selectionRing);
 
-    if (descriptor.isOwner) {
-      this.addCrown();
-    }
-
     this.labelSprite = createTextSprite(descriptor.displayName, colorToCss(descriptor.color));
     paintCompactLabel(this.labelSprite, descriptor.displayName, colorToCss(descriptor.color));
     this.labelBaseY = descriptor.isOwner ? 2.08 : 2.16;
     this.labelSprite.position.y = this.labelBaseY;
     this.actor.add(this.labelSprite);
-    this.emotionSprite = createEmotionSprite(descriptor.isOwner ? '👑' : descriptor.kind === 'subagent' ? '🛠️' : '🧭');
+    this.emotionSprite = createEmotionSprite(descriptor.isOwner ? '🙂' : descriptor.kind === 'subagent' ? '🛠️' : '🧭');
     this.emotionSprite.position.set(descriptor.isOwner ? 0.72 : 1.16, descriptor.isOwner ? 1.82 : 1.94, 0);
+    this.emotionSprite.visible = !descriptor.isOwner;
     this.actor.add(this.emotionSprite);
     this.conversationSprite = createEmotionSprite('💬');
     this.conversationSprite.position.set(descriptor.isOwner ? -0.72 : -1.16, descriptor.isOwner ? 1.82 : 1.94, 0);
@@ -1211,21 +1236,9 @@ export class CharacterController {
     return Math.sin(normalized * Math.PI) ** 2;
   }
 
-  private addCrown(): void {
-    for (const x of [-0.13, 0, 0.13]) {
-      const crownPoint = new THREE.Mesh(
-        new THREE.ConeGeometry(0.09, x === 0 ? 0.24 : 0.18, 8),
-        standardMaterial(0xf4b85c, 0.4)
-      );
-      crownPoint.position.set(x, x === 0 ? 1.76 : 1.73, 0);
-      crownPoint.castShadow = true;
-      this.body.add(crownPoint);
-    }
-  }
-
   private updateEmotion(state: CharacterState): void {
     const emoji: Record<CharacterState, string> = {
-      owner: '👑',
+      owner: '🙂',
       unknown: '💭',
       idle: '🙂',
       working: '💻',
@@ -1235,7 +1248,7 @@ export class CharacterController {
       offline: '💤'
     };
     const hasCoffee = this.coffeeMode !== 'none';
-    this.emotionSprite.visible = hasCoffee || state !== 'idle';
+    this.emotionSprite.visible = hasCoffee || (state !== 'idle' && state !== 'owner');
     const replacement = createEmotionSprite(hasCoffee ? '☕' : emoji[state]);
     this.emotionSprite.material.map?.dispose();
     this.emotionSprite.material.map = replacement.material.map;
