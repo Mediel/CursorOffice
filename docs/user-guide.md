@@ -96,7 +96,7 @@ Detail podle dostupných dat ukazuje stav, roli, workspace, chat, aktuální ná
 Spodní legenda odděluje dvě různé informace:
 
 - **Role / košile:** zelený majitel, tyrkysový manažer Cursor okna, modrý hlavní chat nebo senior a fialový programátor/subagent. Mírně odlišné odstíny v rámci jedné barevné rodiny pouze rozlišují jednotlivé postavy. Manažeři, chaty/senioři a subagenti mají na košili stejný standardní bílý obdélníkový štítek se svým jménem; tento štítek nevyjadřuje roli ani stav. Majitel jej nenosí a odlišuje jej zlatá jmenovka nad hlavou; postava nenosí korunu.
-- **Vzhled:** výška, stavba těla, odstín pokožky, barva vlasů a účes jsou různorodé, ale pro stejnou identitu stabilní i po reloadu. Majitel má ve výchozím profilu upravený tmavý účes s pěšinkou a patkou.
+- **Vzhled:** výška, stavba těla, odstín pokožky, barva vlasů a účes jsou různorodé, ale pro stejnou identitu stabilní i po reloadu. Část postav má vousy (strnisko, knír, plnovous, kotlety a další tvary) nebo brýle; sluneční brýle jsou vzácné a většina tváří zůstává bez nich. Workeři často nosí čepici, kšiltovku, kšilt nebo velká sluchátka. Manažer je upravenější (límec, kravata, bez čepice). Majitel má ve výchozím profilu upravený tmavý účes s pěšinkou a patkou, bez vousů i brýlí.
 - **Stav / tělo a kruh:** šedý neznámý, modrý volný, zelený pracující, žlutý čekající na uživatele, červený problém, fialový hotový a tmavě šedý offline.
 
 Role se během života postavy nemění kromě prezentačního povýšení hlavního chatu na seniora, které používá stejnou modrou kategorii. Stav se naopak mění průběžně. Stejné rozdělení používají barevné avatary a stavové popisky v týmovém panelu.
@@ -127,7 +127,7 @@ Skrytí týmu filtrem jej nezastaví. Postavy dál pracují, přesouvají se a m
 
 Místnost není vždy přímým důkazem aktuálního stavu. Postava může být na cestě, čekat ve dveřích, vracet se z rozhovoru nebo dokončovat předchozí animaci.
 
-Délky volnočasových akcí se záměrně liší. Čas posezení začíná až po příchodu na gauč nebo židli; káva, protažení, mávání, postávání i nezávazné rozhovory mají vlastní rozsahy a při každém dalším cyklu dostanou jinou stabilní hodnotu. Idle konverzace může mít dva až čtyři členy. Skupina si předem rezervuje sousední místa, počká na posledního příchozího, střídá jednoho mluvčího a po skončení se rozpadá postupně. Reálný prompt nebo handoff má vždy přednost.
+Délky akcí se záměrně liší. Čas posezení začíná až po příchodu na gauč nebo židli. Káva není vázaná na kuchyňské místo ani na volný čas: postava ji může popíjet při práci u stolu, vsedě, v lounge nebo během rozhovoru. Některá dopije během několika sekund, běžná ji pije desítky sekund a pomalý piják může usrkávat přes dvě minuty. Protažení, mávání, postávání i nezávazné rozhovory mají vlastní rozsahy a při každém dalším cyklu dostanou jinou stabilní hodnotu. Idle konverzace může mít dva až čtyři členy. Skupina si předem rezervuje sousední místa, počká na posledního příchozího, střídá jednoho mluvčího a po skončení se rozpadá postupně. Reálný prompt nebo handoff má vždy přednost.
 
 ## Modely a tokeny
 
@@ -157,9 +157,11 @@ Přesná současná časování jsou v části [Neaktivita, dokončení a odchod
 | Nastavení | Význam |
 |---|---|
 | `cursorOffice.ownerName` | Jméno majitele; prázdná hodnota použije lokální uživatelské jméno |
+| `cursorOffice.officeName` | Název v záhlaví kanceláře a na kartě editoru |
+| `cursorOffice.officeLogoPath` | Absolutní cesta k PNG, JPEG, WebP nebo GIF logu do 2 MB; prázdná hodnota zobrazí iniciály názvu |
 | `cursorOffice.hostPath` | Volitelná absolutní cesta k host `.dll`, `.csproj` nebo spustitelnému souboru |
 
-`hostPath` je určen hlavně pro vývoj a diagnostiku. Instalovaná VSIX obsahuje vlastní publikovaný .NET 10 host a standardně žádnou ruční cestu nepotřebuje.
+Logo lze pohodlně vybrat také příkazem `Cursor Office: Select Office Logo`. Název i logo se po změně nastavení aktualizují v otevřené kanceláři. `hostPath` je určen hlavně pro vývoj a diagnostiku. Instalovaná VSIX obsahuje vlastní publikovaný .NET 10 host a standardně žádnou ruční cestu nepotřebuje.
 
 ## Soukromí a lokální soubory
 

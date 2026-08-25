@@ -159,6 +159,61 @@ public sealed class CursorTranscriptAgentEventSourceTests
     }
 
     [Fact]
+    public async Task FreshParentKeepsRecentlySilentSubagentWorking()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"cursor-office-tests-{Guid.NewGuid():N}");
+        var conversationId = "parent-fresh-123";
+        var subagentId = "child-quiet-456";
+        var conversation = Path.Combine(
+            root,
+            "c-Users-test-source-repos-QuietProject",
+            "agent-transcripts",
+            conversationId);
+        var subagents = Path.Combine(conversation, "subagents");
+        Directory.CreateDirectory(subagents);
+        var parentPath = Path.Combine(conversation, $"{conversationId}.jsonl");
+        var childPath = Path.Combine(subagents, $"{subagentId}.jsonl");
+        await File.WriteAllTextAsync(parentPath, "content-is-never-read");
+        await File.WriteAllTextAsync(childPath, "content-is-never-read");
+        var observedAt = DateTimeOffset.UtcNow.AddMinutes(1);
+        File.SetLastWriteTimeUtc(parentPath, observedAt.UtcDateTime);
+        File.SetLastWriteTimeUtc(childPath, observedAt.AddSeconds(-90).UtcDateTime);
+
+        try
+        {
+            var source = new CursorTranscriptAgentEventSource(
+                root,
+                new FixedTimeProvider(observedAt),
+                initialLookback: TimeSpan.FromMinutes(5),
+                activeWindow: TimeSpan.FromSeconds(45),
+                childGrace: TimeSpan.FromMinutes(5),
+                pollingInterval: TimeSpan.FromMilliseconds(10));
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var activities = new List<Application.Agents.AgentActivity>();
+
+            await foreach (var activity in source.ReadAllAsync(timeout.Token))
+            {
+                activities.Add(activity);
+                if (activities.Count == 2)
+                {
+                    break;
+                }
+            }
+
+            Assert.Contains(activities, activity =>
+                activity.AgentId == $"cursor-{conversationId}"
+                && activity.Status == AgentStatus.Working);
+            Assert.Contains(activities, activity =>
+                activity.AgentId == $"cursor-subagent-{subagentId}"
+                && activity.Status == AgentStatus.Working);
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task StaleSubagentTranscriptFallsBackToIdleInsteadOfCompleted()
     {
         var root = Path.Combine(Path.GetTempPath(), $"cursor-office-tests-{Guid.NewGuid():N}");

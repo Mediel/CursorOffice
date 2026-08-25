@@ -7,7 +7,28 @@ try
     if (!string.IsNullOrWhiteSpace(input))
     {
         using var document = JsonDocument.Parse(input);
-        WriteEvent(Normalize(document.RootElement));
+        var hookEvent = Normalize(document.RootElement);
+        WriteEvent(hookEvent);
+        if (hookEvent.Kind == "subagent"
+            && hookEvent.Status == "working"
+            && !string.IsNullOrWhiteSpace(hookEvent.ParentAgentId))
+        {
+            var parentShortId = hookEvent.ParentAgentId.Replace("cursor-", string.Empty, StringComparison.OrdinalIgnoreCase);
+            parentShortId = parentShortId.Length > 6 ? parentShortId[..6] : parentShortId;
+            WriteEvent(hookEvent with
+            {
+                AgentId = hookEvent.ParentAgentId,
+                DisplayName = $"Cursor Agent {parentShortId}",
+                Role = $"{hookEvent.Workspace} · agent",
+                Status = "working",
+                CurrentTask = $"{hookEvent.Workspace}: koordinuje aktivní podagenty",
+                Detail = $"{hookEvent.Workspace} · rodič aktivního podagenta",
+                Kind = "primary",
+                ParentAgentId = null,
+                IsParallelWorker = false,
+                InteractionKind = null,
+            });
+        }
     }
 }
 catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException)
@@ -31,6 +52,7 @@ static OfficeHookEvent Normalize(JsonElement input)
     var workspace = workspaceContext.Name;
     var parentConversationId = GetString(input, "parent_conversation_id");
     var occurredAt = DateTimeOffset.UtcNow;
+    var sessions = new SubagentSessionStore();
     var windowAssociation = new WindowCorrelationStore().Resolve(
         conversationId,
         eventName is "subagentStart" or "subagentStop" ? parentConversationId : null,
@@ -114,6 +136,7 @@ static OfficeHookEvent Normalize(JsonElement input)
                 ? $"{workspace} · paralelní pracovník"
                 : $"{workspace} · podagent")
                 + (branch is null ? string.Empty : $" · větev {branch}");
+            sessions.RememberStart(startedAgentId, parentConversationId ?? conversationId, workspace, occurredAt);
             break;
         case "subagentStop":
             interactionKind = "handoffCompleted";
@@ -154,6 +177,29 @@ static OfficeHookEvent Normalize(JsonElement input)
             };
             detail = $"{workspace} · agent loop: {stopStatus}";
             break;
+    }
+
+    if (kind == "primary"
+        && eventName is not "beforeSubmitPrompt" and not "sessionStart" and not "sessionEnd")
+    {
+        var bound = sessions.Resolve(
+            conversationId,
+            parentConversationId,
+            GetString(input, "agent_transcript_path") ?? GetString(input, "transcript_path"),
+            workspace,
+            occurredAt);
+        if (bound is not null)
+        {
+            agentId = $"cursor-subagent-{bound.SubagentId}";
+            displayName = SubagentPresentation.FormatDisplayName("subagent", bound.SubagentId);
+            kind = "subagent";
+            parentAgentId = $"cursor-{bound.ParentConversationId}";
+            role = $"{workspace} · Subagent";
+            if (status is not "completed" and not "error" and not "offline")
+            {
+                status = "working";
+            }
+        }
     }
 
     return new OfficeHookEvent(

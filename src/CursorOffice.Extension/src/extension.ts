@@ -19,6 +19,23 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('cursorOffice.openOffice', () => {
       OfficePanel.createOrShow(context.extensionUri, host, windowPresence);
     }),
+    vscode.commands.registerCommand('cursorOffice.selectOfficeLogo', async () => {
+      const selected = await vscode.window.showOpenDialog({
+        canSelectFiles: true,
+        canSelectFolders: false,
+        canSelectMany: false,
+        filters: {
+          'Obrázky': ['png', 'jpg', 'jpeg', 'webp', 'gif']
+        },
+        title: 'Vyberte logo kanceláře'
+      });
+      if (!selected?.[0]) {
+        return;
+      }
+      await vscode.workspace
+        .getConfiguration('cursorOffice')
+        .update('officeLogoPath', selected[0].fsPath, vscode.ConfigurationTarget.Global);
+    }),
     vscode.commands.registerCommand('cursorOffice.installGlobalHooks', async () => {
       const choice = await vscode.window.showWarningMessage(
         'Cursor Office přidá pasivní hooks do uživatelského ~/.cursor/hooks.json. Hooky nic neblokují a neposílají obsah promptů ani souborů.',

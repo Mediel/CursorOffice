@@ -15,6 +15,7 @@ public sealed class CursorTranscriptAgentEventSource : IAgentEventSource
     private readonly TimeProvider timeProvider;
     private readonly TimeSpan initialLookback;
     private readonly TimeSpan activeWindow;
+    private readonly TimeSpan childGrace;
     private readonly TimeSpan pollingInterval;
     private readonly Dictionary<string, ObservedTranscript> observed =
         new(StringComparer.OrdinalIgnoreCase);
@@ -24,6 +25,7 @@ public sealed class CursorTranscriptAgentEventSource : IAgentEventSource
         TimeProvider? timeProvider = null,
         TimeSpan? initialLookback = null,
         TimeSpan? activeWindow = null,
+        TimeSpan? childGrace = null,
         TimeSpan? pollingInterval = null)
     {
         this.projectsDirectory = projectsDirectory ?? Path.Combine(
@@ -35,7 +37,8 @@ public sealed class CursorTranscriptAgentEventSource : IAgentEventSource
         // Hooks are the authoritative real-time signal. Transcript timestamps are
         // a fallback that must cover thinking pauses and long tool calls when
         // hooks are missing or delayed, without keeping finished work alive forever.
-        this.activeWindow = activeWindow ?? TimeSpan.FromSeconds(45);
+        this.activeWindow = activeWindow ?? TimeSpan.FromMinutes(3);
+        this.childGrace = childGrace ?? TimeSpan.FromMinutes(8);
         this.pollingInterval = pollingInterval ?? TimeSpan.FromMilliseconds(300);
     }
 
@@ -46,11 +49,15 @@ public sealed class CursorTranscriptAgentEventSource : IAgentEventSource
         {
             var now = timeProvider.GetUtcNow();
             var transcripts = EnumerateRecentTranscripts(now - initialLookback).ToArray();
+            var parentWrites = transcripts
+                .Where(transcript => !transcript.IsSubagent)
+                .GroupBy(transcript => transcript.InstanceId, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(group => group.Key, group => group.First().LastWriteTime, StringComparer.OrdinalIgnoreCase);
             var activeParentIds = transcripts
                 .Where(transcript =>
                     transcript.IsSubagent
                     && transcript.ParentConversationId is not null
-                    && now - transcript.LastWriteTime <= activeWindow)
+                    && IsOwnFileActive(now, transcript.LastWriteTime, parentWrites, transcript.ParentConversationId))
                 .Select(transcript => transcript.ParentConversationId!)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
@@ -59,7 +66,8 @@ public sealed class CursorTranscriptAgentEventSource : IAgentEventSource
                 cancellationToken.ThrowIfCancellationRequested();
                 var isCoordinating = !transcript.IsSubagent
                     && activeParentIds.Contains(transcript.InstanceId);
-                var status = isCoordinating || now - transcript.LastWriteTime <= activeWindow
+                var status = isCoordinating
+                    || IsOwnFileActive(now, transcript.LastWriteTime, parentWrites, transcript.ParentConversationId)
                     ? AgentStatus.Working
                     : AgentStatus.Idle;
 
@@ -113,6 +121,23 @@ public sealed class CursorTranscriptAgentEventSource : IAgentEventSource
 
             await Task.Delay(pollingInterval, timeProvider, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    private bool IsOwnFileActive(
+        DateTimeOffset now,
+        DateTimeOffset lastWrite,
+        IReadOnlyDictionary<string, DateTimeOffset> parentWrites,
+        string? parentConversationId)
+    {
+        if (now - lastWrite <= activeWindow)
+        {
+            return true;
+        }
+
+        return parentConversationId is not null
+            && now - lastWrite <= childGrace
+            && parentWrites.TryGetValue(parentConversationId, out var parentWrite)
+            && now - parentWrite <= activeWindow;
     }
 
     private IEnumerable<TranscriptDescriptor> EnumerateRecentTranscripts(DateTimeOffset cutoff)

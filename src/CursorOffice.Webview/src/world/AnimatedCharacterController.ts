@@ -2,12 +2,12 @@ import * as THREE from 'three';
 import {
   roleColors,
   statusColors,
-  statusLabels,
   visualRoleFor,
   type AgentSnapshot,
   type AgentStatus,
   type AgentVisualRole
 } from '../contracts';
+import { statusLabel } from '../i18n';
 import { colorToCss } from '../ui/dom';
 import { CharacterStateMachine, type CharacterVisualState } from './CharacterStateMachine';
 
@@ -39,6 +39,18 @@ function standardMaterial(color: number, roughness = 0.76): THREE.MeshStandardMa
 }
 
 type HairStyle = 'bald' | 'buzz' | 'short' | 'sidePart' | 'executive' | 'bob' | 'long' | 'curly' | 'bun' | 'mohawk';
+type HeadAccessory = 'none' | 'beanie' | 'cap' | 'visor' | 'headphones';
+type FacialHair =
+  | 'none'
+  | 'stubble'
+  | 'mustache'
+  | 'soulPatch'
+  | 'goatee'
+  | 'anchor'
+  | 'fullBeard'
+  | 'muttonChops'
+  | 'sideburns';
+type Eyewear = 'none' | 'glasses' | 'sunglasses';
 type CharacterAppearance = {
   hairStyle: HairStyle;
   hairColor: number;
@@ -46,6 +58,10 @@ type CharacterAppearance = {
   widthScale: number;
   heightScale: number;
   depthScale: number;
+  accessory: HeadAccessory;
+  accessoryColor: number;
+  facialHair: FacialHair;
+  eyewear: Eyewear;
 };
 
 const hairColors = [
@@ -82,6 +98,98 @@ const hairStyles: readonly HairStyle[] = [
   'mohawk'
 ];
 
+const managerHairStyles: readonly HairStyle[] = [
+  'executive',
+  'sidePart',
+  'short',
+  'buzz',
+  'bob'
+];
+
+const hatHairStyles: readonly HairStyle[] = ['bald', 'buzz', 'short'];
+
+const workerAccessories: readonly HeadAccessory[] = [
+  'none',
+  'beanie',
+  'beanie',
+  'cap',
+  'cap',
+  'cap',
+  'visor',
+  'headphones',
+  'headphones',
+  'headphones'
+];
+
+const chatAccessories: readonly HeadAccessory[] = [
+  'none',
+  'none',
+  'none',
+  'none',
+  'none',
+  'none',
+  'headphones'
+];
+
+const accessoryColors = [
+  0x1e3a5f,
+  0xc62828,
+  0x2e7d32,
+  0x6a1b9a,
+  0xef6c00,
+  0x1565c0,
+  0x37474f,
+  0xd4a017
+] as const;
+
+const workerFacialHair: readonly FacialHair[] = [
+  'none', 'none', 'none', 'none', 'none', 'none', 'none',
+  'stubble', 'stubble',
+  'mustache', 'mustache',
+  'soulPatch',
+  'goatee',
+  'anchor',
+  'fullBeard', 'fullBeard',
+  'muttonChops',
+  'sideburns'
+];
+
+const chatFacialHair: readonly FacialHair[] = [
+  'none', 'none', 'none', 'none', 'none', 'none', 'none', 'none', 'none', 'none',
+  'stubble',
+  'mustache',
+  'goatee',
+  'fullBeard',
+  'sideburns'
+];
+
+const managerFacialHair: readonly FacialHair[] = [
+  'none', 'none', 'none', 'none', 'none', 'none', 'none', 'none',
+  'stubble',
+  'mustache',
+  'mustache'
+];
+
+const workerEyewear: readonly Eyewear[] = [
+  'none', 'none', 'none', 'none', 'none', 'none', 'none', 'none',
+  'none', 'none', 'none', 'none', 'none', 'none', 'none', 'none',
+  'glasses', 'glasses', 'glasses',
+  'sunglasses'
+];
+
+const chatEyewear: readonly Eyewear[] = [
+  'none', 'none', 'none', 'none', 'none', 'none', 'none', 'none',
+  'none', 'none', 'none', 'none', 'none', 'none', 'none', 'none',
+  'none', 'none',
+  'glasses', 'glasses', 'glasses',
+  'sunglasses'
+];
+
+const managerEyewear: readonly Eyewear[] = [
+  'none', 'none', 'none', 'none', 'none', 'none', 'none', 'none',
+  'glasses'
+];
+
 const bodyBuilds = [
   { width: 0.88, height: 1.01, depth: 0.92 },
   { width: 0.96, height: 1, depth: 0.97 },
@@ -108,20 +216,50 @@ function stablePick<T>(values: readonly T[], seed: string): T {
   return values[stableHash(seed) % values.length];
 }
 
-function createAppearance(seed: string, isOwner: boolean): CharacterAppearance {
+function createAppearance(seed: string, visualRole: AgentVisualRole): CharacterAppearance {
+  const isOwner = visualRole === 'owner';
+  const isManager = visualRole === 'manager';
   const build = isOwner
     ? bodyBuilds[2]
     : stablePick(bodyBuilds, `${seed}:build`);
   const heightVariation = isOwner
     ? 1
     : 0.92 + stableUnit(`${seed}:height`) * 0.18;
+  const accessory = visualRole === 'subagent'
+    ? stablePick(workerAccessories, `${seed}:accessory`)
+    : visualRole === 'chat'
+      ? stablePick(chatAccessories, `${seed}:accessory`)
+      : 'none';
+  const hairPool = isOwner
+    ? ['executive'] as const
+    : isManager
+      ? managerHairStyles
+      : accessory === 'beanie' || accessory === 'cap' || accessory === 'visor'
+        ? hatHairStyles
+        : hairStyles;
   return {
-    hairStyle: isOwner ? 'executive' : stablePick(hairStyles, `${seed}:hair-style`),
+    hairStyle: stablePick(hairPool, `${seed}:hair-style`),
     hairColor: isOwner ? 0x3d281f : stablePick(hairColors, `${seed}:hair-color`),
     skinColor: isOwner ? 0xe8b991 : stablePick(skinColors, `${seed}:skin-color`),
     widthScale: build.width,
     heightScale: THREE.MathUtils.clamp(build.height * heightVariation, 0.9, 1.12),
-    depthScale: build.depth
+    depthScale: build.depth,
+    accessory,
+    accessoryColor: stablePick(accessoryColors, `${seed}:accessory-color`),
+    facialHair: isOwner
+      ? 'none'
+      : isManager
+        ? stablePick(managerFacialHair, `${seed}:facial-hair`)
+        : visualRole === 'subagent'
+          ? stablePick(workerFacialHair, `${seed}:facial-hair`)
+          : stablePick(chatFacialHair, `${seed}:facial-hair`),
+    eyewear: isOwner
+      ? 'none'
+      : isManager
+        ? stablePick(managerEyewear, `${seed}:eyewear`)
+        : visualRole === 'subagent'
+          ? stablePick(workerEyewear, `${seed}:eyewear`)
+          : stablePick(chatEyewear, `${seed}:eyewear`)
   };
 }
 
@@ -248,6 +386,265 @@ function createHair(style: HairStyle, color: number): THREE.Group {
     }
   }
   return hair;
+}
+
+function createHeadAccessory(kind: HeadAccessory, color: number): THREE.Group {
+  const group = new THREE.Group();
+  if (kind === 'none') {
+    return group;
+  }
+
+  const fabric = standardMaterial(color, 0.78);
+  if (kind === 'beanie') {
+    const crown = new THREE.Mesh(
+      new THREE.SphereGeometry(0.3, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.62),
+      fabric
+    );
+    crown.position.y = 0.08;
+    crown.scale.set(1.08, 0.92, 1.08);
+    crown.castShadow = true;
+    const cuff = new THREE.Mesh(
+      new THREE.TorusGeometry(0.262, 0.046, 8, 18),
+      standardMaterial(0xf4f1ea, 0.7)
+    );
+    cuff.rotation.x = Math.PI / 2;
+    cuff.position.y = 0.02;
+    cuff.castShadow = true;
+    const pompom = new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8), standardMaterial(0xf4f1ea, 0.7));
+    pompom.position.set(0, 0.34, -0.02);
+    pompom.castShadow = true;
+    group.add(crown, cuff, pompom);
+    return group;
+  }
+
+  if (kind === 'cap' || kind === 'visor') {
+    if (kind === 'cap') {
+      const crown = new THREE.Mesh(
+        new THREE.SphereGeometry(0.28, 16, 10, 0, Math.PI * 2, 0, Math.PI * 0.54),
+        fabric
+      );
+      crown.position.y = 0.07;
+      crown.scale.set(1.06, 0.78, 1.06);
+      crown.castShadow = true;
+      group.add(crown);
+    } else {
+      const band = new THREE.Mesh(
+        new THREE.TorusGeometry(0.255, 0.036, 8, 18),
+        fabric
+      );
+      band.rotation.x = Math.PI / 2;
+      band.position.y = 0.045;
+      band.castShadow = true;
+      group.add(band);
+    }
+    const brim = new THREE.Mesh(new THREE.BoxGeometry(0.46, 0.03, 0.28), fabric);
+    brim.position.set(0, kind === 'visor' ? 0.035 : 0.02, 0.34);
+    brim.rotation.x = -0.18;
+    brim.castShadow = true;
+    group.add(brim);
+    return group;
+  }
+
+  const band = new THREE.Mesh(
+    new THREE.TorusGeometry(0.3, 0.04, 8, 18, Math.PI),
+    standardMaterial(0x16181c, 0.38)
+  );
+  band.position.y = 0.06;
+  band.castShadow = true;
+  group.add(band);
+  const cupMaterial = standardMaterial(color, 0.42);
+  const padMaterial = standardMaterial(0x111318, 0.7);
+  for (const x of [-0.34, 0.34]) {
+    const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.18, 0.12, 16), cupMaterial);
+    cup.rotation.z = Math.PI / 2;
+    cup.position.set(x, 0.02, 0);
+    cup.castShadow = true;
+    const pad = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.032, 8, 16), padMaterial);
+    pad.rotation.y = Math.PI / 2;
+    pad.position.set(x * 0.74, 0.02, 0);
+    pad.castShadow = true;
+    group.add(cup, pad);
+  }
+  return group;
+}
+
+function facialHairColor(hairColor: number): number {
+  const color = new THREE.Color(hairColor);
+  color.offsetHSL(0, 0.04, -0.1);
+  return color.getHex();
+}
+
+function addMustache(group: THREE.Group, material: THREE.MeshStandardMaterial): void {
+  for (const x of [-0.046, 0.046]) {
+    addHairPart(
+      group,
+      new THREE.CapsuleGeometry(0.018, 0.055, 3, 8),
+      material,
+      [x, -0.042, 0.228],
+      [1.15, 0.72, 0.7],
+      [1.15, 0, x < 0 ? 0.55 : -0.55]
+    );
+  }
+}
+
+function addChinTuft(group: THREE.Group, material: THREE.MeshStandardMaterial, scale = 1): void {
+  addHairPart(
+    group,
+    new THREE.SphereGeometry(0.042 * scale, 10, 8),
+    material,
+    [0, -0.168, 0.2],
+    [0.95, 1.15, 0.85]
+  );
+}
+
+function createFacialHair(kind: FacialHair, hairColor: number): THREE.Group {
+  const group = new THREE.Group();
+  if (kind === 'none') {
+    return group;
+  }
+
+  const material = standardMaterial(facialHairColor(hairColor), 0.92);
+  if (kind === 'stubble') {
+    const stubble: readonly [number, number, number, number][] = [
+      [-0.13, -0.1, 0.2, 0.038], [0.13, -0.1, 0.2, 0.038],
+      [-0.08, -0.15, 0.195, 0.036], [0.08, -0.15, 0.195, 0.036],
+      [0, -0.175, 0.188, 0.04],
+      [-0.16, -0.02, 0.175, 0.03], [0.16, -0.02, 0.175, 0.03]
+    ];
+    for (const [x, y, z, radius] of stubble) {
+      addHairPart(group, new THREE.SphereGeometry(radius, 8, 6), material, [x, y, z], [1, 0.55, 0.7]);
+    }
+    return group;
+  }
+
+  if (kind === 'mustache') {
+    addMustache(group, material);
+    return group;
+  }
+
+  if (kind === 'soulPatch') {
+    addHairPart(group, new THREE.SphereGeometry(0.022, 8, 6), material, [0, -0.118, 0.228], [0.85, 1.1, 0.7]);
+    return group;
+  }
+
+  if (kind === 'goatee') {
+    addMustache(group, material);
+    addChinTuft(group, material, 0.92);
+    return group;
+  }
+
+  if (kind === 'anchor') {
+    addMustache(group, material);
+    addHairPart(group, new THREE.CapsuleGeometry(0.016, 0.07, 3, 8), material, [0, -0.13, 0.22], [0.9, 1, 0.7]);
+    addChinTuft(group, material, 0.78);
+    return group;
+  }
+
+  if (kind === 'fullBeard') {
+    addMustache(group, material);
+    addChinTuft(group, material, 1.2);
+    for (const x of [-0.145, 0.145]) {
+      addHairPart(
+        group,
+        new THREE.CapsuleGeometry(0.042, 0.14, 4, 8),
+        material,
+        [x, -0.1, 0.155],
+        [1, 1, 0.85],
+        [0.35, 0, x < 0 ? 0.35 : -0.35]
+      );
+    }
+    addHairPart(group, new THREE.SphereGeometry(0.09, 10, 8), material, [0, -0.195, 0.145], [1.15, 0.85, 0.95]);
+    return group;
+  }
+
+  if (kind === 'muttonChops') {
+    for (const x of [-0.175, 0.175]) {
+      addHairPart(
+        group,
+        new THREE.CapsuleGeometry(0.038, 0.16, 4, 8),
+        material,
+        [x, -0.04, 0.165],
+        [1.05, 1, 0.8],
+        [0.15, 0, x < 0 ? 0.45 : -0.45]
+      );
+      addHairPart(
+        group,
+        new THREE.SphereGeometry(0.05, 8, 6),
+        material,
+        [x * 0.85, -0.1, 0.2],
+        [1, 0.7, 0.75]
+      );
+    }
+    return group;
+  }
+
+  for (const x of [-0.2, 0.2]) {
+    addHairPart(
+      group,
+      new THREE.CapsuleGeometry(0.026, 0.12, 3, 8),
+      material,
+      [x, 0.02, 0.08],
+      [0.95, 1, 0.85]
+    );
+  }
+  return group;
+}
+
+function createEyewear(kind: Eyewear): THREE.Group {
+  const group = new THREE.Group();
+  if (kind === 'none') {
+    return group;
+  }
+
+  const isSunglasses = kind === 'sunglasses';
+  const frame = standardMaterial(isSunglasses ? 0x111318 : 0x1c242b, 0.38);
+  frame.metalness = isSunglasses ? 0.28 : 0.12;
+  const lens = new THREE.MeshStandardMaterial({
+    color: isSunglasses ? 0x14181c : 0x7ea8c4,
+    roughness: isSunglasses ? 0.22 : 0.12,
+    metalness: isSunglasses ? 0.35 : 0.18,
+    transparent: !isSunglasses,
+    opacity: isSunglasses ? 1 : 0.32,
+    depthWrite: isSunglasses
+  });
+
+  const bridge = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.014, 0.016), frame);
+  bridge.position.set(0, 0.03, 0.238);
+  bridge.castShadow = true;
+  group.add(bridge);
+
+  for (const x of [-0.082, 0.082]) {
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.046, 0.008, 8, 16), frame);
+    rim.position.set(x, 0.026, 0.236);
+    rim.castShadow = true;
+    const glass = new THREE.Mesh(new THREE.CircleGeometry(0.04, 16), lens);
+    glass.position.set(x, 0.026, 0.237);
+    const temple = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.012, 0.16), frame);
+    temple.position.set(x * 1.95, 0.032, 0.145);
+    temple.castShadow = true;
+    group.add(rim, glass, temple);
+  }
+  return group;
+}
+
+function createManagerAttire(): THREE.Group {
+  const attire = new THREE.Group();
+  const collarMaterial = standardMaterial(0xf3f5f7, 0.58);
+  for (const x of [-0.082, 0.082]) {
+    const collar = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.05), collarMaterial);
+    collar.position.set(x, 1.08, 0.22);
+    collar.rotation.z = x < 0 ? 0.4 : -0.4;
+    collar.castShadow = true;
+    attire.add(collar);
+  }
+  const knot = new THREE.Mesh(new THREE.BoxGeometry(0.056, 0.042, 0.032), standardMaterial(0x141820, 0.48));
+  knot.position.set(0, 1.058, 0.248);
+  knot.castShadow = true;
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.052, 0.3, 0.022), standardMaterial(0x1a2230, 0.5));
+  blade.position.set(0, 0.88, 0.24);
+  blade.castShadow = true;
+  attire.add(knot, blade);
+  return attire;
 }
 
 function createShirtNameBadge(displayName: string): THREE.Group {
@@ -547,8 +944,6 @@ export class CharacterController {
     this.actor.add(this.body);
     this.status = descriptor.isOwner ? 'owner' : 'unknown';
     this.appearanceKey = descriptor.appearanceKey ?? descriptor.id;
-    const appearance = createAppearance(this.appearanceKey, descriptor.isOwner);
-    this.body.scale.set(appearance.widthScale, appearance.heightScale, appearance.depthScale);
     const initialRole = descriptor.visualRole
       ?? (descriptor.isOwner
         ? 'owner'
@@ -557,6 +952,8 @@ export class CharacterController {
           : descriptor.kind === 'subagent'
             ? 'subagent'
             : 'chat');
+    const appearance = createAppearance(this.appearanceKey, initialRole);
+    this.body.scale.set(appearance.widthScale, appearance.heightScale, appearance.depthScale);
 
     this.torsoMaterial = standardMaterial(
       roleShirtColor(initialRole, this.appearanceKey),
@@ -575,7 +972,10 @@ export class CharacterController {
     belt.castShadow = true;
     this.body.add(belt);
 
-    const darkMaterial = standardMaterial(descriptor.isOwner ? 0x382a1f : 0x243642, 0.76);
+    const darkMaterial = standardMaterial(
+      descriptor.isOwner ? 0x382a1f : initialRole === 'manager' ? 0x161d28 : 0x243642,
+      0.76
+    );
     for (const x of [-0.12, 0.12]) {
       const pivot = new THREE.Group();
       pivot.position.set(x, 0.47, 0);
@@ -635,6 +1035,10 @@ export class CharacterController {
     head.castShadow = true;
     this.headPivot.add(head);
     this.headPivot.add(createHair(appearance.hairStyle, appearance.hairColor));
+    this.headPivot.add(createHeadAccessory(appearance.accessory, appearance.accessoryColor));
+    if (initialRole === 'manager') {
+      this.body.add(createManagerAttire());
+    }
 
     const faceMaterial = standardMaterial(0x17232b, 0.86);
     for (const x of [-0.082, 0.082]) {
@@ -646,6 +1050,8 @@ export class CharacterController {
     this.mouth = new THREE.Mesh(new THREE.BoxGeometry(0.105, 0.018, 0.018), faceMaterial);
     this.mouth.position.set(0, -0.085, 0.231);
     this.headPivot.add(this.mouth);
+    this.headPivot.add(createFacialHair(appearance.facialHair, appearance.hairColor));
+    this.headPivot.add(createEyewear(appearance.eyewear));
 
     if (!descriptor.isOwner) {
       const shirtNameBadge = createShirtNameBadge(descriptor.displayName);
@@ -844,7 +1250,7 @@ export class CharacterController {
       model,
       task,
       tokens,
-      status: statusLabels[snapshot.status],
+      status: statusLabel(snapshot.status),
       accent: colorToCss(statusColors[snapshot.status])
     };
     this.paintCurrentLabel();

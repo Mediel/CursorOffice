@@ -1,5 +1,7 @@
 import { randomBytes } from 'node:crypto';
+import { readFileSync, statSync } from 'node:fs';
 import { userInfo } from 'node:os';
+import { extname } from 'node:path';
 import * as vscode from 'vscode';
 import type { LocalHostClient } from './host/localHostClient';
 import { ownerRoleFor, readOfficePreferences } from './officePreferences';
@@ -34,7 +36,9 @@ export class OfficePanel {
         if (event.affectsConfiguration('cursorOffice.language')
           || event.affectsConfiguration('cursorOffice.shirtColors')) {
           this.configureWebview();
-        } else if (event.affectsConfiguration('cursorOffice.ownerName')) {
+        } else if (event.affectsConfiguration('cursorOffice.ownerName')
+          || event.affectsConfiguration('cursorOffice.officeName')
+          || event.affectsConfiguration('cursorOffice.officeLogoPath')) {
           this.sendBootstrap();
         }
       },
@@ -58,7 +62,7 @@ export class OfficePanel {
 
     const panel = vscode.window.createWebviewPanel(
       OfficePanel.viewType,
-      'Cursor Office',
+      readOfficeName(),
       vscode.ViewColumn.Active,
       OfficePanel.webviewOptions(extensionUri)
     );
@@ -100,6 +104,7 @@ export class OfficePanel {
 
   private sendBootstrap(): void {
     const preferences = readOfficePreferences();
+    const officeName = readOfficeName();
     const configuredName = vscode.workspace
       .getConfiguration('cursorOffice')
       .get<string>('ownerName', '')
@@ -108,6 +113,10 @@ export class OfficePanel {
     void this.panel.webview.postMessage({
       type: 'office.bootstrap',
       payload: {
+        brand: {
+          name: officeName,
+          logoDataUri: readOfficeLogoDataUri()
+        },
         owner: {
           displayName: configuredName || userInfo().username,
           role: ownerRoleFor(preferences.language),
@@ -119,6 +128,7 @@ export class OfficePanel {
         windows: this.windowPresence.activeWindows
       }
     });
+    this.panel.title = officeName;
   }
 
   private getHtml(): string {
@@ -156,5 +166,43 @@ export class OfficePanel {
     while (this.disposables.length > 0) {
       this.disposables.pop()?.dispose();
     }
+  }
+}
+
+function readOfficeName(): string {
+  return vscode.workspace
+    .getConfiguration('cursorOffice')
+    .get<string>('officeName', 'Cursor Office')
+    .trim() || 'Cursor Office';
+}
+
+function readOfficeLogoDataUri(): string | undefined {
+  const logoPath = vscode.workspace
+    .getConfiguration('cursorOffice')
+    .get<string>('officeLogoPath', '')
+    .trim();
+  if (!logoPath) {
+    return undefined;
+  }
+
+  const mimeTypes: Record<string, string> = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp',
+    '.gif': 'image/gif'
+  };
+  const mimeType = mimeTypes[extname(logoPath).toLowerCase()];
+  if (!mimeType) {
+    return undefined;
+  }
+
+  try {
+    if (statSync(logoPath).size > 2 * 1024 * 1024) {
+      return undefined;
+    }
+    return `data:${mimeType};base64,${readFileSync(logoPath).toString('base64')}`;
+  } catch {
+    return undefined;
   }
 }

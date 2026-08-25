@@ -52,6 +52,7 @@ type AgentBehavior = {
   cycle: number;
   nextMoveAt: number;
   nextGestureAt: number;
+  nextCoffeeAt: number;
   statusChangedAt: number;
   lastActivityAt: number;
   departAt: number;
@@ -146,13 +147,13 @@ function createWoodFloorMaterial(maxAnisotropy: number): THREE.MeshStandardMater
   canvas.height = 512;
   const context = canvas.getContext('2d');
   if (!context) {
-    return standardMaterial(0x826247, 0.88);
+    return standardMaterial(0x6b503a, 0.88);
   }
 
   const plankWidth = 192;
   const plankHeight = 64;
-  const plankColors = ['#826247', '#8c6a4c', '#76583f', '#927053', '#7d5e45', '#89664a'];
-  context.fillStyle = '#513a2a';
+  const plankColors = ['#6b503a', '#73573e', '#614834', '#785c44', '#664d38', '#70543d'];
+  context.fillStyle = '#422f22';
   context.fillRect(0, 0, canvas.width, canvas.height);
 
   for (let row = 0; row < canvas.height / plankHeight; row += 1) {
@@ -205,9 +206,9 @@ function createWoodFloorMaterial(maxAnisotropy: number): THREE.MeshStandardMater
   texture.anisotropy = Math.min(maxAnisotropy, 8);
   texture.needsUpdate = true;
   return new THREE.MeshStandardMaterial({
-    color: 0xffffff,
+    color: 0xe2d2c0,
     map: texture,
-    roughness: 0.84,
+    roughness: 0.88,
     metalness: 0.015
   });
 }
@@ -790,6 +791,7 @@ export class OfficeWorld {
           cycle: 0,
           nextMoveAt: Number.POSITIVE_INFINITY,
           nextGestureAt: Number.POSITIVE_INFINITY,
+          nextCoffeeAt: Number.POSITIVE_INFINITY,
           statusChangedAt: now,
           lastActivityAt: activityAt,
           departAt: now,
@@ -813,6 +815,7 @@ export class OfficeWorld {
           cycle: 0,
           nextMoveAt: Number.POSITIVE_INFINITY,
           nextGestureAt: Number.POSITIVE_INFINITY,
+          nextCoffeeAt: Number.POSITIVE_INFINITY,
           statusChangedAt: now,
           lastActivityAt: activityAt,
           departAt: now,
@@ -856,6 +859,7 @@ export class OfficeWorld {
           nextGestureAt: now + (requestsAttention(agent.id, agent.status)
             ? 1.4 + statusIndex * 0.6
             : 5 + statusIndex * 1.8),
+          nextCoffeeAt: now + variedSeconds(28, 105, `${agent.id}:coffee:first`),
           statusChangedAt: now,
           lastActivityAt: activityAt,
           departAt: Number.POSITIVE_INFINITY,
@@ -1020,6 +1024,10 @@ export class OfficeWorld {
     controller: CharacterController,
     behavior: AgentBehavior
   ): void {
+    if (behavior.coffeeBreak) {
+      behavior.nextCoffeeAt = this.sceneSeconds
+        + variedSeconds(35, 120, `${id}:coffee:retargeted:${behavior.cycle}`);
+    }
     behavior.coffeeBreak = undefined;
     controller.setCoffeeMode('none');
     this.poiManager.release(id);
@@ -1101,6 +1109,7 @@ export class OfficeWorld {
     this.updateOwnerMovement(deltaSeconds);
     this.updateCameraMovement(deltaSeconds);
     this.updateAgentLifecycle(seconds);
+    this.updateCoffeeBehaviors(seconds);
     this.updateLeisureBehaviors(seconds);
     this.updateKitchenAppliances(seconds);
     this.updateOwnerAutonomy(seconds);
@@ -1232,7 +1241,7 @@ export class OfficeWorld {
       .filter(([id, behavior]) => behavior.phase === 'present'
         && isLeisureBehavior(behavior)
         && !behavior.retiring
-        && !behavior.coffeeBreak
+        && coffeeAllowsConversation(behavior)
         && !this.isSociallyBusy(id)
         && !this.agents.get(id)?.isMoving)
       .map(([id]) => id)
@@ -1685,7 +1694,6 @@ export class OfficeWorld {
         continue;
       }
       if (behavior.coffeeBreak) {
-        this.updateCoffeeBreak(id, controller, behavior, seconds);
         continue;
       }
       const sociallyBusy = this.isSociallyBusy(id);
@@ -1712,10 +1720,6 @@ export class OfficeWorld {
 
       this.poiManager.release(id);
       const preferredKinds = leisurePoiKinds(behavior.retiring ? 'completed' : behavior.status, behavior.cycle);
-      if (preferredKinds[0] === 'kitchen'
-        && this.startCoffeeBreak(id, controller, behavior, seconds)) {
-        continue;
-      }
       const nonKitchenKinds = preferredKinds.filter(kind => kind !== 'kitchen');
       const destination = this.poiManager.claim(id, nonKitchenKinds, behavior.index + behavior.cycle * 3)
         ?? this.poiManager.claim(id, ['lounge', 'meeting', 'idle'], behavior.index + behavior.cycle * 3);
@@ -1731,6 +1735,28 @@ export class OfficeWorld {
     }
 
     this.queueAmbientInteraction(seconds);
+  }
+
+  private updateCoffeeBehaviors(seconds: number): void {
+    for (const [id, behavior] of this.agentBehaviors) {
+      const controller = this.agents.get(id);
+      if (!controller || behavior.phase !== 'present') {
+        continue;
+      }
+      if (behavior.coffeeBreak) {
+        this.updateCoffeeBreak(id, controller, behavior, seconds);
+        continue;
+      }
+      if (seconds < behavior.nextCoffeeAt
+        || controller.isMoving
+        || this.isSociallyBusy(id)
+        || !canHaveCoffee(id, behavior)) {
+        continue;
+      }
+      if (!this.startCoffeeBreak(id, controller, behavior, seconds)) {
+        behavior.nextCoffeeAt = seconds + variedSeconds(8, 22, `${id}:coffee:retry:${behavior.cycle}`);
+      }
+    }
   }
 
   private startCoffeeBreak(
@@ -1755,6 +1781,7 @@ export class OfficeWorld {
     behavior.pendingDwellPoiId = undefined;
     behavior.nextMoveAt = Number.POSITIVE_INFINITY;
     behavior.nextGestureAt = Number.POSITIVE_INFINITY;
+    behavior.nextCoffeeAt = Number.POSITIVE_INFINITY;
     controller.setCoffeeMode('none');
     controller.setActivity('idle');
     controller.setRestPose(machine.restPose, machine.facing, machine.visualOffset);
@@ -1772,7 +1799,7 @@ export class OfficeWorld {
     if (!coffeeBreak) {
       return;
     }
-    if (!isLeisureBehavior(behavior) || requestsAttention(id, behavior.status) || this.isSociallyBusy(id)) {
+    if (!canHaveCoffee(id, behavior)) {
       this.cancelCoffeeBreak(id, controller, behavior, seconds);
       return;
     }
@@ -1801,7 +1828,7 @@ export class OfficeWorld {
         {
           const breakDestination = this.poiManager.claim(
             id,
-            ['coffee'],
+            coffeeDestinationKinds(behavior),
             behavior.index + behavior.cycle,
             behavior.teamKey
           );
@@ -1827,7 +1854,11 @@ export class OfficeWorld {
           return;
         }
         controller.stopMovement();
-        controller.setRestPose('stand', behavior.destination!.facing);
+        controller.setRestPose(
+          behavior.destination!.restPose,
+          behavior.destination!.facing,
+          behavior.destination!.visualOffset
+        );
         this.beginDrinkingCoffee(id, controller, behavior, seconds);
         return;
 
@@ -1872,6 +1903,7 @@ export class OfficeWorld {
         this.poiManager.release(id);
         behavior.nextMoveAt = seconds + variedSeconds(1.2, 3.4, `${id}:coffee:leave:${behavior.cycle}`);
         behavior.nextGestureAt = seconds + variedSeconds(5, 14, `${id}:coffee:next-gesture:${behavior.cycle}`);
+        behavior.nextCoffeeAt = seconds + variedSeconds(55, 210, `${id}:coffee:next:${behavior.cycle}`);
         return;
     }
   }
@@ -1886,7 +1918,7 @@ export class OfficeWorld {
     if (!coffeeBreak) {
       return;
     }
-    const duration = variedSeconds(8.5, 17.5, `${id}:coffee:drink:${behavior.cycle}`);
+    const duration = coffeeDrinkDuration(id, behavior.cycle);
     coffeeBreak.phase = 'drinking';
     coffeeBreak.phaseStartedAt = seconds;
     coffeeBreak.phaseUntil = seconds + duration;
@@ -1901,6 +1933,11 @@ export class OfficeWorld {
   ): void {
     const coffeeBreak = behavior.coffeeBreak;
     if (!coffeeBreak) {
+      return;
+    }
+    if (this.isSociallyBusy(id)) {
+      coffeeBreak.phase = 'waitingForSink';
+      coffeeBreak.phaseUntil = seconds + variedSeconds(1.5, 4, `${id}:coffee:social-retry:${behavior.cycle}`);
       return;
     }
     const sink = this.poiManager.claimSpecific(id, kitchenSinkPoiId);
@@ -1930,6 +1967,7 @@ export class OfficeWorld {
     this.poiManager.release(id);
     behavior.nextMoveAt = seconds + 1;
     behavior.nextGestureAt = seconds + 4;
+    behavior.nextCoffeeAt = seconds + variedSeconds(35, 120, `${id}:coffee:cancelled:${behavior.cycle}`);
   }
 
   private updateKitchenAppliances(seconds: number): void {
@@ -1965,7 +2003,7 @@ export class OfficeWorld {
       .filter(([id, behavior]) => behavior.phase === 'present'
         && isLeisureBehavior(behavior)
         && !requestsAttention(id, behavior.status)
-        && !behavior.coffeeBreak
+        && coffeeAllowsConversation(behavior)
         && !this.isSociallyBusy(id)
         && !this.agents.get(id)?.isMoving
         && (behavior.kind === 'primary' || behavior.departAt - seconds > 18))
@@ -2172,7 +2210,10 @@ export class OfficeWorld {
       return;
     }
     const controller = this.agents.get(snapshot.id);
-    if (controller && behavior.coffeeBreak) {
+    if (controller && behavior.coffeeBreak
+      && behavior.coffeeBreak.phase !== 'drinking'
+      && behavior.coffeeBreak.phase !== 'walkingToBreak'
+      && behavior.coffeeBreak.phase !== 'waitingForSink') {
       this.cancelCoffeeBreak(snapshot.id, controller, behavior, seconds);
     }
     this.finishAmbientSocialGroupsFor([snapshot.id, hostId], seconds);
@@ -3182,6 +3223,41 @@ function leisureDwellSeconds(id: string, behavior: AgentBehavior): number {
     range = [10, 38];
   }
   return variedSeconds(range[0], range[1], `${id}:dwell:${poiId}:${behavior.cycle}`);
+}
+
+function canHaveCoffee(id: string, behavior: AgentBehavior): boolean {
+  return behavior.phase === 'present'
+    && behavior.status !== 'unknown'
+    && behavior.status !== 'error'
+    && behavior.status !== 'offline'
+    && !requestsAttention(id, behavior.status);
+}
+
+function coffeeAllowsConversation(behavior: AgentBehavior): boolean {
+  return !behavior.coffeeBreak
+    || behavior.coffeeBreak.phase === 'drinking'
+    || behavior.coffeeBreak.phase === 'waitingForSink';
+}
+
+function coffeeDestinationKinds(behavior: AgentBehavior): readonly OfficePoiKind[] {
+  if (behavior.status === 'working') {
+    return ['desk', 'meeting', 'coffee'];
+  }
+  if (behavior.status === 'waitingForUser') {
+    return ['meeting', 'lounge', 'coffee', 'idle'];
+  }
+  return ['lounge', 'meeting', 'coffee', 'idle'];
+}
+
+function coffeeDrinkDuration(id: string, cycle: number): number {
+  const profile = variedSeconds(0, 1, `${id}:coffee:pace`);
+  if (profile < 0.22) {
+    return variedSeconds(4, 10, `${id}:coffee:quick:${cycle}`);
+  }
+  if (profile < 0.82) {
+    return variedSeconds(16, 48, `${id}:coffee:normal:${cycle}`);
+  }
+  return variedSeconds(55, 150, `${id}:coffee:sipper:${cycle}`);
 }
 
 function leisureGestureDuration(id: string, gesture: CharacterGesture, cycle: number): number {

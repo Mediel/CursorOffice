@@ -94,6 +94,73 @@ public sealed class AgentMonitorInteractionTests
         Assert.False(only.IsFallback);
     }
 
+    [Fact]
+    public async Task WorkingChildKeepsParentFromWaitingForUser()
+    {
+        var child = new AgentActivity(
+            "cursor-subagent-child",
+            "General Purpose child",
+            "CursorOffice · Subagent",
+            AgentStatus.Working,
+            "CursorOffice: aktivní",
+            null,
+            DateTimeOffset.UtcNow,
+            AgentKind.Subagent,
+            "primary-agent");
+        var parentWaiting = Activity("generation-1", AgentStatus.WaitingForUser);
+        var monitor = new AgentMonitor(
+            new AgentRegistry(),
+            new StubEventSource([child, parentWaiting]));
+        var snapshots = new List<AgentSnapshot>();
+
+        await monitor.RunAsync(
+            (snapshot, _) =>
+            {
+                snapshots.Add(snapshot);
+                return ValueTask.CompletedTask;
+            },
+            CancellationToken.None);
+
+        Assert.Contains(snapshots, snapshot =>
+            snapshot.Id == "primary-agent" && snapshot.Status == AgentStatus.Working);
+        Assert.DoesNotContain(snapshots, snapshot =>
+            snapshot.Id == "primary-agent" && snapshot.Status == AgentStatus.WaitingForUser);
+    }
+
+    [Fact]
+    public async Task WorkingChildPromotesExistingParentToCoordinator()
+    {
+        var parent = Activity("generation-1", AgentStatus.WaitingForUser);
+        var child = new AgentActivity(
+            "cursor-subagent-child",
+            "General Purpose child",
+            "CursorOffice · Subagent",
+            AgentStatus.Working,
+            "CursorOffice: aktivní",
+            null,
+            DateTimeOffset.UtcNow,
+            AgentKind.Subagent,
+            "primary-agent");
+        var monitor = new AgentMonitor(
+            new AgentRegistry(),
+            new StubEventSource([parent, child]));
+        var snapshots = new List<AgentSnapshot>();
+
+        await monitor.RunAsync(
+            (snapshot, _) =>
+            {
+                snapshots.Add(snapshot);
+                return ValueTask.CompletedTask;
+            },
+            CancellationToken.None);
+
+        Assert.Equal(AgentStatus.WaitingForUser, snapshots[0].Status);
+        Assert.Contains(snapshots, snapshot =>
+            snapshot.Id == "primary-agent"
+            && snapshot.Status == AgentStatus.Working
+            && snapshot.CurrentTask == "Cursor workspace: koordinuje aktivní podagenty");
+    }
+
     private static AgentActivity Activity(string generationId, AgentStatus status) => new(
         AgentId: "primary-agent",
         DisplayName: "Primary Agent",

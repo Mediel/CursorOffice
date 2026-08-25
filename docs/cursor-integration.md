@@ -45,7 +45,7 @@ Když některá verze Cursoru nebo konkrétní workflow nevyšle hook pro vznik 
 - hlavní transcript → `primary` agent,
 - soubor v `subagents/` → `subagent` s rodičem podle adresáře konverzace.
 
-Změna metadat v posledních 45 sekundách znamená `working`. Okno pokrývá delší pauzy mezi tool cally a přemýšlením, ale po jeho vypršení fallback bezpečně přejde do `idle`. Je-li aktivní kterýkoli podagent, jeho hlavní konverzace zůstává `working` s činností „koordinuje aktivní podagenty“, i když se její vlastní soubor nemění nebo je starší než počáteční lookback. Po vypršení okna přejde neaktivní hlavní konverzace i podagent do `idle`. Terminální stavy `completed`, `offline` a `error` smí nastavit pouze skutečný lifecycle hook; fallback je nesmí zrušit ani znovu označit jako pracující.
+Změna vlastního souboru v posledních 3 minutách znamená `working`. Pokud se rodičovský transcript ještě hýbe, podagent zůstává `working` až 8 minut i bez vlastního zápisu, protože Cursor často nepřepisuje soubor během přemýšlení nebo dlouhého nástroje. Je-li aktivní kterýkoli podagent, jeho hlavní konverzace zůstává `working` s činností „koordinuje aktivní podagenty“, i když hook mezitím poslal `afterAgentResponse`. Tool hooky podagenta běžně přijdou pod novým `conversation_id` bez vazby na rodiče; bridge proto pamatuje `subagentStart` a pozdější nástroje přiřadí stejnému pracovníkovi. Terminální stavy `completed`, `offline` a `error` smí nastavit pouze skutečný lifecycle hook; fallback je nesmí zrušit ani znovu označit jako pracující.
 
 ## 3. Cursor CLI / ACP – budoucí řídicí adaptéry
 

@@ -75,6 +75,11 @@ export type OfficeOwner = {
   accent: string;
 };
 
+export type OfficeBrand = {
+  name: string;
+  logoDataUri?: string;
+};
+
 export type CursorWindowSnapshot = {
   id: string;
   label: string;
@@ -87,6 +92,7 @@ export type CursorWindowSnapshot = {
 };
 
 export type OfficeBootstrap = {
+  brand?: OfficeBrand;
   owner: OfficeOwner;
   agents: AgentSnapshot[];
   usage?: UsageLedgerSnapshot;

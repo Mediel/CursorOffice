@@ -55,7 +55,7 @@ Manažer představuje okno a existuje i bez chatu. Chat se objeví až po rozpoz
 Nejdřív rozlište skutečný hook a fallback:
 
 - Hook události se obvykle projeví během stovek milisekund.
-- Fallback metadata označují práci jen po změně transcript souboru a po 45 sekundách bez další změny se vracejí do `idle`.
+- Fallback metadata označují práci po změně transcript souboru po dobu 3 minut. Podagent zůstává u stolu až 8 minut, pokud se ještě hýbe rodičovský transcript.
 - Dlouhý vzdálený výpočet nebo tool call nemusí transcript průběžně zapisovat. Pokud jeho lifecycle hook daná verze Cursoru neposlala, fallback nemá bezpečný důkaz pokračující práce.
 
 Zkontrolujte:

@@ -1,5 +1,6 @@
 import type { AgentSnapshot, CursorWindowSnapshot, OfficeBootstrap, OfficeOwner, UsageLedgerSnapshot } from '../contracts';
-import { roleColors, statusColors, statusLabels, visualRoleFor } from '../contracts';
+import { roleColors, statusColors, visualRoleFor } from '../contracts';
+import { statusLabel } from '../i18n';
 import { colorToCss, escapeHtml, requireElement } from './dom';
 
 export class OfficeHud {
@@ -9,6 +10,9 @@ export class OfficeHud {
   private readonly ownerCard: HTMLElement;
   private readonly detailPanel: HTMLElement;
   private readonly windowFilter: HTMLSelectElement;
+  private readonly brandInitials: HTMLElement;
+  private readonly brandLogo: HTMLImageElement;
+  private readonly brandName: HTMLElement;
   private readonly agentStates = new Map<string, AgentSnapshot>();
   private ownerState: OfficeOwner | undefined;
   private usageState: UsageLedgerSnapshot | undefined;
@@ -25,9 +29,12 @@ export class OfficeHud {
         <canvas class="office-canvas" aria-label="3D kancelář agentů"></canvas>
         <header class="office-topbar">
           <div class="brand-card glass-card">
-            <span class="brand-mark">CO</span>
+            <span class="brand-mark">
+              <span class="brand-initials">CO</span>
+              <img class="brand-logo" alt="" hidden />
+            </span>
             <span class="brand-copy">
-              <strong>Cursor Office</strong>
+              <strong class="brand-name">Cursor Office</strong>
               <span>lokální tým v reálném čase</span>
             </span>
           </div>
@@ -85,6 +92,9 @@ export class OfficeHud {
     this.ownerCard = requireElement<HTMLElement>(root, '.owner-card');
     this.detailPanel = requireElement<HTMLElement>(root, '.detail-panel');
     this.windowFilter = requireElement<HTMLSelectElement>(root, '.window-filter');
+    this.brandInitials = requireElement<HTMLElement>(root, '.brand-initials');
+    this.brandLogo = requireElement<HTMLImageElement>(root, '.brand-logo');
+    this.brandName = requireElement<HTMLElement>(root, '.brand-name');
     this.windowFilter.addEventListener('change', () => this.onWindowFilterRequested(this.windowFilter.value));
     requireElement<HTMLButtonElement>(root, '.usage-metric').addEventListener('click', () => {
       this.showUsageDetails = true;
@@ -112,10 +122,27 @@ export class OfficeHud {
   }
 
   public applyBootstrap(bootstrap: OfficeBootstrap): void {
+    this.updateBrand(bootstrap.brand);
     this.updateWindowFilter(bootstrap.windows, bootstrap.currentWindow, bootstrap.agents);
     this.updateOwner(bootstrap.owner);
     this.updateAgents(bootstrap.agents);
     this.updateUsage(bootstrap.usage);
+  }
+
+  private updateBrand(brand: OfficeBootstrap['brand']): void {
+    const name = brand?.name.trim() || 'Cursor Office';
+    this.brandName.textContent = name;
+    this.brandInitials.textContent = officeInitials(name);
+    const logo = brand?.logoDataUri;
+    this.brandLogo.hidden = !logo;
+    this.brandInitials.hidden = Boolean(logo);
+    if (logo) {
+      this.brandLogo.src = logo;
+      this.brandLogo.alt = `${name} logo`;
+    } else {
+      this.brandLogo.removeAttribute('src');
+      this.brandLogo.alt = '';
+    }
   }
 
   private updateWindowFilter(
@@ -264,7 +291,7 @@ export class OfficeHud {
           <span class="agent-copy">
             <span class="agent-name-line">
               <strong>${escapeHtml(agent.displayName)}</strong>
-              <small>${escapeHtml(statusLabels[agent.status])}</small>
+              <small>${escapeHtml(statusLabel(agent.status))}</small>
             </span>
             <span class="agent-task">${escapeHtml(agent.currentTask ?? agent.role)}</span>
             <span class="agent-meta"><em class="agent-model">${escapeHtml(model)}</em><small class="agent-tokens">${escapeHtml(tokens)}</small></span>
@@ -386,7 +413,7 @@ export class OfficeHud {
         <span class="detail-kicker">${escapeHtml(`${workspace} · ${hierarchy}`)}</span>
         <h2>${escapeHtml(agent.displayName)}</h2>
         <p>${escapeHtml(agent.currentTask ?? 'Bez aktuálního úkolu')}</p>
-        <div class="detail-status"><i style="--detail-color: ${statusColor}"></i> ${escapeHtml(statusLabels[agent.status])}</div>
+        <div class="detail-status"><i style="--detail-color: ${statusColor}"></i> ${escapeHtml(statusLabel(agent.status))}</div>
         <div class="detail-facts">
           ${conversationFact}
           <span><small>${isWindowManager ? 'MODELY TÝMU' : 'MODEL'}</small><strong title="${escapeHtml(modelValue)}">${escapeHtml(modelValue)}</strong></span>
@@ -439,6 +466,21 @@ export class OfficeHud {
       row.classList.toggle('selected', row.dataset.agentId === this.selectedId);
     });
   }
+}
+
+function officeInitials(name: string): string {
+  const words = name
+    .trim()
+    .split(/\s+/u)
+    .filter(Boolean);
+  if (words.length === 0) {
+    return 'CO';
+  }
+  return words
+    .slice(0, 2)
+    .map(word => Array.from(word)[0] ?? '')
+    .join('')
+    .toLocaleUpperCase();
 }
 
 function renderUsageTotal(label: string, value?: number): string {
