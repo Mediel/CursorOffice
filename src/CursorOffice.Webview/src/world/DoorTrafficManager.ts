@@ -6,6 +6,7 @@ export type DoorTraveler = {
   position: THREE.Vector3;
   remainingPath: readonly THREE.Vector3[];
   moving: boolean;
+  seated?: boolean;
 };
 
 type DoorState = {
@@ -119,6 +120,13 @@ export class DoorTrafficManager {
       const lateral = Math.abs(lateralCoordinate(position, portal));
       return longitudinal <= 0.66 && lateral <= portal.halfWidth + 0.18;
     });
+  }
+
+  /** Only two people who are actually crossing should ignore each other in a door. */
+  public areCrossingTogether(left: DoorTraveler, right: DoorTraveler): boolean {
+    return left.moving && right.moving && !left.seated && !right.seated
+      && this.isInsideDoorCore(left.position)
+      && this.isInsideDoorCore(right.position);
   }
 
   private state(portal: DoorPortal): DoorState {

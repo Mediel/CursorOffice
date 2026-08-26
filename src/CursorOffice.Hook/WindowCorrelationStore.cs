@@ -164,18 +164,7 @@ public sealed class WindowCorrelationStore
         return Path.Combine(bindingsDirectory, $"{hash}.json");
     }
 
-    private static string NormalizePath(string path)
-    {
-        try
-        {
-            return Path.GetFullPath(path)
-                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        }
-        catch (Exception exception) when (exception is ArgumentException or NotSupportedException)
-        {
-            return path.Trim().TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        }
-    }
+    private static string NormalizePath(string path) => WorkspacePathNormalizer.Normalize(path);
 }
 
 public sealed record CursorWindowAssociation(string WindowId, string WindowLabel, string Resolution);

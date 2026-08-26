@@ -27,4 +27,6 @@ public sealed record AgentActivity(
     string? WindowId = null,
     string? WindowLabel = null,
     AgentWindowCorrelation? WindowCorrelation = null,
-    string? ConversationTitle = null);
+    string? ConversationTitle = null,
+    ModelParams? ModelParams = null,
+    ContextUsage? ContextUsage = null);

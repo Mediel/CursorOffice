@@ -85,6 +85,40 @@ public sealed class WindowCorrelationStoreTests : IDisposable
         Assert.Null(result);
     }
 
+    [Fact]
+    public void Resolve_MatchesCursorUriWorkspaceRootToWindowsHeartbeat()
+    {
+        WriteWindow("window-a", "CursorOffice · A", true, now, "C:\\Users\\erdtM\\source\\repos\\CursorOffice");
+
+        var result = Store().Resolve(
+            "conversation-1",
+            null,
+            ["/c:/Users/erdtM/source/repos/CursorOffice"],
+            "beforeSubmitPrompt",
+            now);
+
+        Assert.NotNull(result);
+        Assert.Equal("window-a", result.WindowId);
+        Assert.Equal("focused", result.Resolution);
+    }
+
+    [Fact]
+    public void Resolve_MatchesFileUriWorkspaceRootToHeartbeatFsPath()
+    {
+        WriteWindow("window-a", "CursorOffice · A", true, now, @"c:\users\erdtm\source\repos\cursoroffice");
+
+        var result = Store().Resolve(
+            "conversation-1",
+            null,
+            ["file:///c:/Users/erdtM/source/repos/CursorOffice"],
+            "beforeSubmitPrompt",
+            now);
+
+        Assert.NotNull(result);
+        Assert.Equal("window-a", result.WindowId);
+        Assert.Equal("focused", result.Resolution);
+    }
+
     public void Dispose()
     {
         Directory.Delete(root, true);

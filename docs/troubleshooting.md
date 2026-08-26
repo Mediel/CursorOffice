@@ -10,7 +10,7 @@ cursor.cmd --list-extensions --show-versions | Select-String cursor-office
 
 Po aktualizaci spusťte `Developer: Reload Window` v každém otevřeném Cursor okně. Reload pouze záložky Cursor Office nestačí, protože lokální host vlastní celý extension host okna.
 
-Aktuální očekávaná verze je `cursor-office.cursor-office@0.1.30`.
+Aktuální očekávaná verze je `cursor-office.cursor-office@0.1.48`.
 
 ## Kancelář se neotevře nebo zůstane prázdná
 
@@ -52,6 +52,8 @@ Manažer představuje okno a existuje i bez chatu. Chat se objeví až po rozpoz
 
 ## Cursor pracuje, ale postava je `idle`
 
+Když Cursor v editoru opravdu pracuje a postava v kanceláři sedí jako `idle` (nebo tým vůbec nevznikne), nejde o autonomii Webview. Chybí důkaz z hooku, nebo se workspace z URI kořene nespároval s heartbeat okna.
+
 Nejdřív rozlište skutečný hook a fallback:
 
 - Hook události se obvykle projeví během stovek milisekund.
@@ -60,10 +62,11 @@ Nejdřív rozlište skutečný hook a fallback:
 
 Zkontrolujte:
 
-1. `Cursor Office: Install Global Hooks`.
-2. `Developer: Reload Window` po změně nebo aktualizaci hooků.
-3. Výstupní kanál `Cursor Office`.
-4. Zda v `%LOCALAPPDATA%/CursorOffice/events-v3` vznikají nové malé soubory při promptu nebo nástroji.
+1. `Cursor Office: Install Global Hooks` a poté `Developer: Reload Window` v každém okně. Starší instalace nemusí mít v `~/.cursor/hooks.json` novější události `afterFileEdit` a `preCompact`; příkaz spravované položky doplní.
+2. Výstupní kanál `Cursor Office` — hledejte `host.ready` a chyby spoolu.
+3. Zda v `%LOCALAPPDATA%/CursorOffice/events-v3` vznikají nové malé JSON soubory při promptu, nástroji, úpravě souboru nebo kompresi kontextu. Bez nových souborů hook do kanceláře nic neposlal.
+4. V souboru události zkontrolujte `workspacePath` a korelaci okna. Cursor 3.18 posílá `workspace_roots` na Windows jako URI (`/c:/Users/...`). Bridge je musí převést na běžnou filesystem cestu (`C:\Users\...`). Tvar `C:\c:\Users\...` nebo prázdný `workspacePath` znamená, že URI kořen se nespároval s heartbeat okna a chat zůstane nezařazený nebo `idle`.
+5. Ověřte, že prompt šel z okna, jehož workspace kořeny po normalizaci sedí na heartbeat v `%LOCALAPPDATA%/CursorOffice/windows-v1`.
 
 Soubory v `events-v3` nemažte během testu: jde o desetiminutový broadcast pro všechny současné hosty a jejich přítomnost po přečtení je normální.
 
@@ -95,15 +98,16 @@ Model se nedoplňuje podle právě vybraného modelu v UI, protože jedna konver
 
 ## Tokeny jsou prázdné nebo se nezvyšují
 
-Veřejný Cursor Hooks kontrakt přesné tokeny negarantuje. Ledger zapisuje pouze pole skutečně dodaná runtime událostí. Proto:
+Veřejný Cursor Hooks kontrakt **účtované tokeny negarantuje**. Ledger zapisuje pouze generační čítače skutečně dodané runtime událostí a jen s `generation_id`. Proto:
 
 - chybějící tokeny nejsou nula,
 - Cursor Office je neodhaduje z délky textu,
 - nezobrazuje cenu bez spolehlivé cenové a modelové informace,
 - manažer ukazuje workspace agregaci, nikoli vlastní spotřebu,
-- jedna generace se deduplikuje a průběžné hodnoty se slučují maximem.
+- jedna generace se deduplikuje a průběžné hodnoty se slučují maximem,
+- zaplnění kontextu z `preCompact` není tokenový ledger; chybí-li řádek „kontextové okno“, hook zatím `preCompact` neposlal nebo nenesl `context_tokens` / `context_window_size` / `context_usage_percent`.
 
-Lokální ledger je `%LOCALAPPDATA%/CursorOffice/usage-ledger.json`. Neobsahuje prompt ani odpověď.
+Lokální ledger je `%LOCALAPPDATA%/CursorOffice/usage-ledger.json`. Neobsahuje prompt, odpověď ani kontextové okno.
 
 ## Jména chatů jsou jen krátká ID
 
@@ -139,7 +143,7 @@ Dočasně lze změnit úhel kamery nebo filtr, ale filtr nemění fyzický stav 
 - `Esc` výběr zruší a potom stejné klávesy opět pohybují kamerou.
 - Když majitel sedí, nejprve přehraje vstávání; pohyb začne po dokončení přechodu.
 
-Pokud se postava pohybuje, ale nohy zůstávají nehybné, ověřte verzi `0.1.30` a reload všech oken.
+Pokud se postava pohybuje, ale nohy zůstávají nehybné, ověřte verzi `0.1.48` a reload všech oken.
 
 ## Kamera je mimo kancelář nebo má špatný úhel
 

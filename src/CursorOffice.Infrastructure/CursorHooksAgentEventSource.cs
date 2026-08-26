@@ -134,7 +134,9 @@ public sealed class CursorHooksAgentEventSource : IAgentEventSource
                     false,
                     hookEvent.WindowId,
                     hookEvent.WindowLabel,
-                    hookEvent.WindowCorrelation);
+                    hookEvent.WindowCorrelation,
+                    ModelParams: hookEvent.ModelParams,
+                    ContextUsage: hookEvent.ContextUsage);
         }
         catch (IOException)
         {
@@ -161,6 +163,8 @@ public sealed class CursorHooksAgentEventSource : IAgentEventSource
         bool IsParallelWorker = false,
         string? GenerationId = null,
         TokenUsage? Usage = null,
+        ModelParams? ModelParams = null,
+        ContextUsage? ContextUsage = null,
         AgentInteractionKind? InteractionKind = null,
         string? WorkspacePath = null,
         string? WindowId = null,

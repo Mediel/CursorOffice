@@ -50,13 +50,67 @@ public sealed class LocalUsageLedgerTests
         }
     }
 
+    [Fact]
+    public void Ledger_WritesOnlyGenerationUsageAndIgnoresContextWindow()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "CursorOffice.Tests", Guid.NewGuid().ToString("N"));
+        var path = Path.Combine(directory, "usage.json");
+        try
+        {
+            var ledger = new LocalUsageLedger(path);
+            var contextOnly = CreateSnapshot(
+                "agent-a",
+                "generation-1",
+                "RepoA",
+                "composer",
+                usage: null,
+                contextUsage: new ContextUsage(120000, 128000, 85));
+            var zeroTokens = CreateSnapshot(
+                "agent-a",
+                "generation-1",
+                "RepoA",
+                "composer",
+                new TokenUsage(0, 0, 0, 0));
+            var missingGeneration = CreateSnapshot(
+                "agent-a",
+                "",
+                "RepoA",
+                "composer",
+                new TokenUsage(40, 10, 0, 0));
+            var billed = CreateSnapshot(
+                "agent-a",
+                "generation-1",
+                "RepoA",
+                "composer",
+                new TokenUsage(40, 10, 0, 0),
+                contextUsage: new ContextUsage(120000, 128000, 85));
+
+            Assert.False(ledger.TryRecord(contextOnly));
+            Assert.False(ledger.TryRecord(zeroTokens));
+            Assert.False(ledger.TryRecord(missingGeneration));
+            Assert.True(ledger.TryRecord(billed));
+
+            var snapshot = ledger.GetSnapshot();
+            Assert.Equal(50, snapshot.Total.TotalTokens);
+            Assert.Equal(1, snapshot.Total.RequestCount);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, true);
+            }
+        }
+    }
+
     private static AgentSnapshot CreateSnapshot(
         string id,
         string generationId,
         string workspace,
         string model,
-        TokenUsage usage,
-        string? workspacePath = null) => new(
+        TokenUsage? usage,
+        string? workspacePath = null,
+        ContextUsage? contextUsage = null) => new(
             id,
             id,
             "Agent",
@@ -68,5 +122,6 @@ public sealed class LocalUsageLedgerTests
             model: model,
             generationId: generationId,
             usage: usage,
+            contextUsage: contextUsage,
             workspacePath: workspacePath);
 }

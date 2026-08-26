@@ -42,9 +42,11 @@ Povolené hodnoty v protokolu:
 - `parentAgentId` – ID hlavní konverzace, která podagenta spustila,
 - `workspace` – název lokálního workspace/repozitáře,
 - `model` – model oznámený Cursor Hookem, pokud je dostupný,
+- `modelParams` – volitelné bezpečné knoby modelu (`thinking`, `effort`, `context`); chybí-li v pozdějším hooku stejné generace, zůstávají poslední prokázané hodnoty,
 - `isParallelWorker` – zda Cursor instanci označil jako paralelního pracovníka,
 - `generationId` – stabilní korelace jedné modelové generace,
-- `usage` – volitelné přesné `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheWriteTokens` a dopočtené `totalTokens`.
+- `usage` – volitelné přesné generační čítače `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheWriteTokens` a dopočtené `totalTokens`. Nejde o zaplnění kontextového okna a chybějící důkaz je `null`, nikoli nula.
+- `contextUsage` – volitelné zaplnění kontextového okna z `preCompact` (`contextTokens`, `contextWindowSize`, `contextUsagePercent`). Do `usage` ani do ledgeru se nezapočítává.
 - `windowId` / `windowLabel` – volitelná lokální identita Cursor okna a její čitelný popisek,
 - `windowCorrelation` – `focused`, `conversation` nebo `workspace` podle způsobu korelace; chybí-li jednoznačný důkaz, okno zůstane nezařazené.
 - `conversationTitle` – volitelný název hlavního Cursor chatu, dohledaný read-only podle `conversation_id`; zprávy se nedotazují.

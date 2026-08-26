@@ -1,7 +1,24 @@
-import type { AgentSnapshot, CursorWindowSnapshot, OfficeBootstrap, OfficeOwner, UsageLedgerSnapshot } from '../contracts';
-import { roleColors, statusColors, visualRoleFor } from '../contracts';
-import { statusLabel } from '../i18n';
+import type {
+  AgentSnapshot,
+  CursorWindowSnapshot,
+  OfficeBootstrap,
+  OfficeOwner,
+  OfficePreferences,
+  OfficeSettingsSnapshot,
+  UsageLedgerSnapshot
+} from '../contracts';
+import { applyRoleColors, roleColors, statusColors, visualRoleFor } from '../contracts';
+import { localeTag, statusLabel, t } from '../i18n';
 import { colorToCss, escapeHtml, requireElement } from './dom';
+import { OfficeSettings } from './OfficeSettings';
+
+export type HudDisplayPreferences = {
+  showModel: boolean;
+  showTokens: boolean;
+  showActivity: boolean;
+};
+
+const activityLimit = 140;
 
 export class OfficeHud {
   public readonly canvas: HTMLCanvasElement;
@@ -18,15 +35,18 @@ export class OfficeHud {
   private usageState: UsageLedgerSnapshot | undefined;
   private selectedId: string | undefined;
   private showUsageDetails = false;
+  private readonly display: HudDisplayPreferences;
+  private readonly settings: OfficeSettings;
 
   public constructor(
     private readonly root: HTMLDivElement,
     private readonly onSelectionRequested: (id?: string) => void,
-    private readonly onWindowFilterRequested: (windowId: string) => void
+    private readonly onWindowFilterRequested: (windowId: string) => void,
+    postMessage?: (message: unknown) => void
   ) {
     root.innerHTML = `
       <main class="office-shell">
-        <canvas class="office-canvas" aria-label="3D kancelář agentů"></canvas>
+        <canvas class="office-canvas" aria-label="${t('canvasAria')}"></canvas>
         <header class="office-topbar">
           <div class="brand-card glass-card">
             <span class="brand-mark">
@@ -35,58 +55,64 @@ export class OfficeHud {
             </span>
             <span class="brand-copy">
               <strong class="brand-name">Cursor Office</strong>
-              <span>lokální tým v reálném čase</span>
+              <span>${t('brandSubtitle')}</span>
             </span>
           </div>
-          <section class="metric-strip glass-card" aria-label="Souhrn kanceláře">
-            <span><strong data-metric="total">0</strong> agenti</span>
-            <span><strong data-metric="working">0</strong> pracují</span>
-            <span><strong data-metric="attention">0</strong> čekají</span>
-            <button class="usage-metric" type="button" aria-label="Otevřít přehled spotřeby"><strong data-metric="usage">0</strong> tokenů*</button>
-          </section>
+          <div class="topbar-actions">
+            <section class="metric-strip glass-card" aria-label="${t('officeSummaryAria')}">
+              <span><strong data-metric="total">0</strong> ${t('agentsMetric')}</span>
+              <span><strong data-metric="working">0</strong> ${t('workingMetric')}</span>
+              <span><strong data-metric="attention">0</strong> ${t('waitingMetric')}</span>
+              <button class="usage-metric" type="button" aria-label="${t('openUsageAria')}"><strong data-metric="usage">0</strong> ${t('tokensMetric')}</button>
+            </section>
+            <button class="settings-toggle glass-card" type="button" aria-label="${t('openSettingsAria')}" aria-expanded="false">
+              <span aria-hidden="true">⚙</span>
+            </button>
+          </div>
         </header>
 
         <aside class="people-panel glass-card">
           <div class="panel-heading">
-            <span>Tým</span>
+            <span>${t('team')}</span>
             <span class="live-badge"><i></i> LIVE</span>
           </div>
           <label class="window-filter-row">
-            <span>POHLED</span>
-            <select class="window-filter" aria-label="Filtrovat podle Cursor okna">
-              <option value="all">Všechna Cursor okna</option>
+            <span>${t('view')}</span>
+            <select class="window-filter" aria-label="${t('filterWindowsAria')}">
+              <option value="all">${t('allWindows')}</option>
             </select>
           </label>
-          <section class="owner-card" aria-label="Majitel kanceláře" role="button" tabindex="0"></section>
+          <section class="owner-card" aria-label="${t('ownerCardAria')}" role="button" tabindex="0"></section>
           <div class="panel-divider"></div>
-          <section class="agent-list" aria-label="Seznam agentů"></section>
+          <section class="agent-list" aria-label="${t('agentListAria')}"></section>
         </aside>
 
         <footer class="office-footer glass-card">
-          <span class="legend-group" aria-label="Role postav podle stálé barvy košile">
-            <b class="legend-title">ROLE · KOŠILE</b>
-            <span><i class="legend-dot role-dot" style="--legend-color: ${colorToCss(roleColors.owner)}"></i>Majitel</span>
-            <span><i class="legend-dot role-dot" style="--legend-color: ${colorToCss(roleColors.manager)}"></i>Manažer</span>
-            <span><i class="legend-dot role-dot" style="--legend-color: ${colorToCss(roleColors.chat)}"></i>Chat / senior</span>
-            <span><i class="legend-dot role-dot" style="--legend-color: ${colorToCss(roleColors.subagent)}"></i>Subagent</span>
+          <span class="legend-group" aria-label="${t('roleLegendAria')}">
+            <b class="legend-title">${t('roleLegendTitle')}</b>
+            <span><i class="legend-dot role-dot" style="--legend-color: var(--role-owner)"></i>${t('owner')}</span>
+            <span><i class="legend-dot role-dot" style="--legend-color: var(--role-manager)"></i>${t('manager')}</span>
+            <span><i class="legend-dot role-dot" style="--legend-color: var(--role-chat)"></i>${t('chatSenior')}</span>
+            <span><i class="legend-dot role-dot" style="--legend-color: var(--role-subagent)"></i>${t('subagent')}</span>
           </span>
           <span class="legend-separator" aria-hidden="true"></span>
-          <span class="legend-group" aria-label="Runtime stav podle barvy světelného kruhu">
-            <b class="legend-title">STAV · KRUH</b>
-            <span><i class="legend-dot status-dot" style="--legend-color: ${colorToCss(statusColors.unknown)}"></i>Neznámý</span>
-            <span><i class="legend-dot status-dot" style="--legend-color: ${colorToCss(statusColors.idle)}"></i>Volný</span>
-            <span><i class="legend-dot status-dot" style="--legend-color: ${colorToCss(statusColors.working)}"></i>Pracuje</span>
-            <span><i class="legend-dot status-dot" style="--legend-color: ${colorToCss(statusColors.waitingForUser)}"></i>Čeká</span>
-            <span><i class="legend-dot status-dot" style="--legend-color: ${colorToCss(statusColors.error)}"></i>Problém</span>
-            <span><i class="legend-dot status-dot" style="--legend-color: ${colorToCss(statusColors.completed)}"></i>Hotovo</span>
-            <span><i class="legend-dot status-dot" style="--legend-color: ${colorToCss(statusColors.offline)}"></i>Offline</span>
+          <span class="legend-group" aria-label="${t('statusLegendAria')}">
+            <b class="legend-title">${t('statusLegendTitle')}</b>
+            <span><i class="legend-dot status-dot" style="--legend-color: ${colorToCss(statusColors.unknown)}"></i>${t('statusUnknown')}</span>
+            <span><i class="legend-dot status-dot" style="--legend-color: ${colorToCss(statusColors.idle)}"></i>${t('statusIdle')}</span>
+            <span><i class="legend-dot status-dot" style="--legend-color: ${colorToCss(statusColors.working)}"></i>${t('statusWorking')}</span>
+            <span><i class="legend-dot status-dot" style="--legend-color: ${colorToCss(statusColors.waitingForUser)}"></i>${t('statusWaiting')}</span>
+            <span><i class="legend-dot status-dot" style="--legend-color: ${colorToCss(statusColors.error)}"></i>${t('statusError')}</span>
+            <span><i class="legend-dot status-dot" style="--legend-color: ${colorToCss(statusColors.completed)}"></i>${t('statusCompleted')}</span>
+            <span><i class="legend-dot status-dot" style="--legend-color: ${colorToCss(statusColors.offline)}"></i>${t('statusOffline')}</span>
           </span>
-          <span class="footer-note">Levé tažení: úhel · kolečko + tažení: posun · kolečko: zoom · WASD: kamera · Q/E: otočení · Home: výchozí pohled · Esc: režim kamery</span>
+          <span class="footer-note">${t('footerControls')}</span>
         </footer>
 
         <section class="detail-panel glass-card" aria-live="polite" hidden></section>
       </main>`;
 
+    this.display = readHudDisplayPreferences(root);
     this.canvas = requireElement<HTMLCanvasElement>(root, '.office-canvas');
     this.agentList = requireElement<HTMLElement>(root, '.agent-list');
     this.ownerCard = requireElement<HTMLElement>(root, '.owner-card');
@@ -95,6 +121,8 @@ export class OfficeHud {
     this.brandInitials = requireElement<HTMLElement>(root, '.brand-initials');
     this.brandLogo = requireElement<HTMLImageElement>(root, '.brand-logo');
     this.brandName = requireElement<HTMLElement>(root, '.brand-name');
+    this.applyRoleColorStyles();
+    this.settings = new OfficeSettings(root, requireElement<HTMLButtonElement>(root, '.settings-toggle'), postMessage);
     this.windowFilter.addEventListener('change', () => this.onWindowFilterRequested(this.windowFilter.value));
     requireElement<HTMLButtonElement>(root, '.usage-metric').addEventListener('click', () => {
       this.showUsageDetails = true;
@@ -122,11 +150,59 @@ export class OfficeHud {
   }
 
   public applyBootstrap(bootstrap: OfficeBootstrap): void {
+    if (bootstrap.settings) {
+      this.applyRolePalette(bootstrap.settings);
+      this.applyDisplayPreferences(bootstrap.settings);
+    }
     this.updateBrand(bootstrap.brand);
     this.updateWindowFilter(bootstrap.windows, bootstrap.currentWindow, bootstrap.agents);
     this.updateOwner(bootstrap.owner);
     this.updateAgents(bootstrap.agents);
     this.updateUsage(bootstrap.usage);
+  }
+
+  public applyPreferences(settings: OfficeSettingsSnapshot): void {
+    this.applyRolePalette(settings);
+    this.applyDisplayPreferences(settings);
+    this.updateAgents([...this.agentStates.values()]);
+  }
+
+  private applyRolePalette(settings: OfficeSettingsSnapshot): void {
+    applyRoleColors(settings.roleColors);
+    this.applyRoleColorStyles();
+  }
+
+  private applyRoleColorStyles(): void {
+    this.root.style.setProperty('--role-owner', colorToCss(roleColors.owner));
+    this.root.style.setProperty('--role-manager', colorToCss(roleColors.manager));
+    this.root.style.setProperty('--role-chat', colorToCss(roleColors.chat));
+    this.root.style.setProperty('--role-subagent', colorToCss(roleColors.subagent));
+  }
+
+  private applyDisplayPreferences(settings: OfficeSettingsSnapshot): void {
+    this.display.showModel = settings.showModel !== false;
+    this.display.showTokens = settings.showTokens !== false;
+    this.display.showActivity = settings.showActivity !== false;
+    this.writeDisplayPreferencesToDataset();
+    this.settings.applySnapshot(settings);
+  }
+
+  private writeDisplayPreferencesToDataset(): void {
+    let current: Record<string, unknown> = {};
+    const encoded = this.root.dataset.officePreferences;
+    if (encoded) {
+      try {
+        current = JSON.parse(decodeURIComponent(encoded)) as Record<string, unknown>;
+      } catch {
+        current = {};
+      }
+    }
+    this.root.dataset.officePreferences = encodeURIComponent(JSON.stringify({
+      ...current,
+      showModel: this.display.showModel,
+      showTokens: this.display.showTokens,
+      showActivity: this.display.showActivity
+    }));
   }
 
   private updateBrand(brand: OfficeBootstrap['brand']): void {
@@ -167,7 +243,7 @@ export class OfficeHud {
       }
       if (!options.has(agent.windowId)) {
         options.set(agent.windowId, {
-          label: agent.windowLabel ?? `Cursor okno ${agent.windowId.slice(-5)}`,
+          label: agent.windowLabel ?? t('cursorWindow', { id: agent.windowId.slice(-5) }),
           isCurrent: agent.windowId === currentWindow?.id,
           isFocused: false
         });
@@ -177,13 +253,13 @@ export class OfficeHud {
       .sort(([, left], [, right]) => {
         if (left.isCurrent !== right.isCurrent) return left.isCurrent ? -1 : 1;
         if (left.isFocused !== right.isFocused) return left.isFocused ? -1 : 1;
-        return left.label.localeCompare(right.label, 'cs');
+        return left.label.localeCompare(right.label, localeTag());
       })
-      .map(([id, window]) => `<option value="${escapeHtml(id)}">${escapeHtml(`${window.label}${window.isCurrent ? ' · toto okno' : window.isFocused ? ' · aktivní' : ''}`)}</option>`);
+      .map(([id, window]) => `<option value="${escapeHtml(id)}">${escapeHtml(`${window.label}${window.isCurrent ? ` · ${t('currentWindow')}` : window.isFocused ? ` · ${t('activeWindow')}` : ''}`)}</option>`);
     if (hasUnassigned) {
-      rows.push('<option value="unassigned">Nezařazené konverzace</option>');
+      rows.push(`<option value="unassigned">${t('unassignedConversations')}</option>`);
     }
-    this.windowFilter.innerHTML = `<option value="all">Všechna Cursor okna</option>${rows.join('')}`;
+    this.windowFilter.innerHTML = `<option value="all">${t('allWindows')}</option>${rows.join('')}`;
     this.windowFilter.value = [...this.windowFilter.options].some(option => option.value === selected)
       ? selected
       : 'all';
@@ -203,11 +279,11 @@ export class OfficeHud {
     this.ownerCard.innerHTML = `
       <div class="owner-emblem">♛</div>
       <span class="owner-copy">
-        <small>MAJITEL</small>
+        <small>${t('ownerKicker')}</small>
         <strong>${escapeHtml(owner.displayName)}</strong>
         <span>${escapeHtml(owner.role)}</span>
       </span>
-      <span class="owner-presence">V kanceláři</span>`;
+      <span class="owner-presence">${t('inOffice')}</span>`;
 
     if (this.selectedId === 'owner') {
       this.renderDetails();
@@ -218,17 +294,17 @@ export class OfficeHud {
     this.agentStates.clear();
     agents.forEach(agent => this.agentStates.set(agent.id, agent));
     const orderedAgents = [...agents].sort((left, right) => {
-      const workspace = (left.workspace ?? left.role).localeCompare(right.workspace ?? right.role, 'cs');
+      const workspace = (left.workspace ?? left.role).localeCompare(right.workspace ?? right.role, localeTag());
       if (workspace !== 0) return workspace;
       const leftKind = left.kind ?? 'primary';
       const rightKind = right.kind ?? 'primary';
       if (leftKind !== rightKind) return leftKind === 'subagent' ? 1 : -1;
-      return left.displayName.localeCompare(right.displayName, 'cs');
+      return left.displayName.localeCompare(right.displayName, localeTag());
     });
 
     const workspaceGroups = new Map<string, AgentSnapshot[]>();
     for (const agent of orderedAgents) {
-      const workspace = agent.workspace?.trim() || 'Neznámý workspace';
+      const workspace = agent.workspace?.trim() || t('unknownWorkspace');
       const group = workspaceGroups.get(workspace) ?? [];
       group.push(agent);
       workspaceGroups.set(workspace, group);
@@ -270,7 +346,9 @@ export class OfficeHud {
           windowAgents.filter(agent => !visited.has(agent.id))
             .forEach(agent => appendTree(agent, agent.kind === 'subagent' ? 1 : 0));
           const label = windowAgents.find(agent => agent.windowLabel)?.windowLabel
-            ?? (windowId === 'unassigned' ? 'Nezařazené konverzace' : `Cursor okno ${windowId.slice(-5)}`);
+            ?? (windowId === 'unassigned'
+              ? t('unassignedConversations')
+              : t('cursorWindow', { id: windowId.slice(-5) }));
           const managers = primaries.length;
           const agentRows = ordered.map(agent => {
             const color = colorToCss(statusColors[agent.status]);
@@ -283,9 +361,26 @@ export class OfficeHud {
               ? 'M'
               : visualRole === 'subagent'
                 ? '↳'
-                : agent.role.includes('senior / koordinátor') ? 'S' : 'A';
+                : childrenByParent.has(agent.id) ? 'S' : 'A';
+            const activity = formatAgentActivity(agent);
             const model = formatAgentModel(agent);
             const tokens = formatAgentTokens(agent);
+            const context = formatAgentContext(agent);
+            const taskRow = this.display.showActivity
+              ? `<span class="agent-task" title="${escapeHtml(activity)}">${escapeHtml(activity)}</span>`
+              : '';
+            const modelCell = this.display.showModel
+              ? `<em class="agent-model" title="${escapeHtml(model)}">${escapeHtml(model)}</em>`
+              : '';
+            const tokenCell = this.display.showTokens
+              ? `<small class="agent-tokens">${escapeHtml(tokens)}</small>`
+              : '';
+            const metaRow = modelCell || tokenCell
+              ? `<span class="agent-meta">${modelCell}${tokenCell}</span>`
+              : '';
+            const contextRow = this.display.showTokens && context
+              ? `<span class="agent-context" title="${escapeHtml(t('contextWindowHint'))}">${escapeHtml(context)}</span>`
+              : '';
             return `<article class="agent-row${kindClass} role-${visualRole}${depthClass}${selectedClass}" data-agent-id="${escapeHtml(agent.id)}" role="button" tabindex="0" style="--agent-color: ${color}; --role-color: ${colorToCss(roleColors[visualRole])}">
           <span class="agent-avatar">${escapeHtml(avatar)}</span>
           <span class="agent-copy">
@@ -293,8 +388,9 @@ export class OfficeHud {
               <strong>${escapeHtml(agent.displayName)}</strong>
               <small>${escapeHtml(statusLabel(agent.status))}</small>
             </span>
-            <span class="agent-task">${escapeHtml(agent.currentTask ?? agent.role)}</span>
-            <span class="agent-meta"><em class="agent-model">${escapeHtml(model)}</em><small class="agent-tokens">${escapeHtml(tokens)}</small></span>
+            ${taskRow}
+            ${metaRow}
+            ${contextRow}
           </span>
           </article>`;
           }).join('');
@@ -307,8 +403,8 @@ export class OfficeHud {
         }).join('');
         return `<section class="workspace-group">
           <header class="workspace-heading" title="${escapeHtml(workspacePath ?? workspace)}">
-            <span><small>MÍSTNOST / WORKSPACE</small><strong>${escapeHtml(workspace)}</strong></span>
-            <em>${working}/${workspaceAgents.length} pracuje</em>
+            <span><small>${t('roomWorkspace')}</small><strong>${escapeHtml(workspace)}</strong></span>
+            <em>${t('worksCount', { working, total: workspaceAgents.length })}</em>
           </header>
           ${rows}
         </section>`;
@@ -340,8 +436,8 @@ export class OfficeHud {
       const workspace = usage?.byWorkspace[0];
       const model = usage?.byModel[0];
       container.title = usage && usage.total.requestCount > 0
-        ? `Lokálně zaznamenáno: ${usage.total.requestCount} generací${workspace ? ` · nejvíce ${workspace.key}` : ''}${model ? ` · ${model.key}` : ''}`
-        : 'Cursor zatím neposlal přesná tokenová data. *Zobrazeny jsou pouze doložené terminální události.';
+        ? `${t('locallyRecorded', { count: usage.total.requestCount })}${workspace ? ` · ${t('mostIn', { workspace: workspace.key })}` : ''}${model ? ` · ${model.key}` : ''}`
+        : t('exactTokensMissingHint');
     }
     this.renderDetails();
   }
@@ -366,15 +462,18 @@ export class OfficeHud {
 
     if (this.selectedId === 'owner' && this.ownerState) {
       const recordedUsage = this.usageState && this.usageState.total.requestCount > 0
-        ? ` Lokální ledger zatím eviduje ${formatTokens(this.usageState.total.totalTokens)} tokenů v ${this.usageState.total.requestCount} generacích.`
-        : ' Přesné tokenové údaje zatím Cursor neposlal.';
+        ? t('ownerUsageRecorded', {
+          tokens: formatTokens(this.usageState.total.totalTokens),
+          count: this.usageState.total.requestCount
+        })
+        : t('ownerUsageMissing');
       this.detailPanel.innerHTML = `
-        <button class="detail-close" type="button" aria-label="Zavřít detail">×</button>
-        <span class="detail-kicker owner-kicker">MAJITEL KANCELÁŘE</span>
+        <button class="detail-close" type="button" aria-label="${t('closeDetail')}">×</button>
+        <span class="detail-kicker owner-kicker">${t('ownerOfficeKicker')}</span>
         <h2>${escapeHtml(this.ownerState.displayName)}</h2>
         <p>${escapeHtml(this.ownerState.role)}</p>
-        <div class="detail-status"><i style="--detail-color: ${escapeHtml(this.ownerState.accent)}"></i> Přítomen a řídí tým</div>
-        <div class="detail-note">Majitel má vlastní pracovní místo. WASD po jeho výběru řídí postavu; Esc vrátí ovládání klávesami kameře. Bez výběru jej pošlete na místo kliknutím na volnou podlahu.${escapeHtml(recordedUsage)}</div>`;
+        <div class="detail-status"><i style="--detail-color: ${escapeHtml(this.ownerState.accent)}"></i> ${t('ownerPresent')}</div>
+        <div class="detail-note">${escapeHtml(t('ownerDetailNote', { usage: recordedUsage }))}</div>`;
     } else {
       const agent = this.agentStates.get(this.selectedId);
       if (!agent) {
@@ -387,42 +486,52 @@ export class OfficeHud {
       const isWindowManager = agent.id.startsWith('cursor-window-manager-');
       const isChatAgent = parent?.id.startsWith('cursor-window-manager-') === true;
       const hierarchy = isWindowManager
-        ? 'MANAŽER CURSOR OKNA'
+        ? t('hierarchyWindowManager')
         : isChatAgent
-          ? agent.role.includes('senior / koordinátor') ? 'VEDOUCÍ AGENT' : 'PRACOVNÍ AGENT'
-          : agent.kind === 'subagent' ? 'PODAGENT / PRACOVNÍK' : 'NEZAŘAZENÝ AGENT';
+          ? [...this.agentStates.values()].some(candidate => candidate.parentAgentId === agent.id)
+            ? t('hierarchyLeadAgent')
+            : t('hierarchyWorkingAgent')
+          : agent.kind === 'subagent' ? t('hierarchySubagent') : t('hierarchyUnassigned');
       const workspace = agent.workspace ?? agent.role;
       const workspaceLedgerKey = agent.workspacePath ?? agent.workspace;
       const workspaceUsage = this.usageState?.byWorkspace.find(bucket => bucket.key === workspaceLedgerKey);
+      const activity = formatAgentActivity(agent);
       const modelValue = formatAgentModel(agent, true);
-      const usageTitle = isWindowManager ? 'TÝM / WORKSPACE · DOLOŽENO' : 'AGENT · POSLEDNÍ GENERACE';
-      const usageValue = agent.usage
-        ? `${formatTokens(agent.usage.totalTokens)} tokenů`
-        : agent.status === 'working' ? 'po dokončení generace' : 'Cursor neposlal';
-      const workspaceUsageFact = isWindowManager ? '' : `
-          <span><small>WORKSPACE · ZAZNAMENÁNO</small><strong>${escapeHtml(workspaceUsage ? `${formatTokens(workspaceUsage.totalTokens)} tokenů` : 'čeká na první doloženou generaci')}</strong></span>`;
+      const usageTitle = isWindowManager ? t('teamWorkspaceEvidence') : t('agentGenerationEvidence');
+      const usageValue = formatInspectorUsage(agent, workspaceUsage);
+      const contextValue = formatAgentContext(agent, true);
+      const modelFact = this.display.showModel ? `
+          <span><small>${isWindowManager ? t('teamModels') : t('model')}</small><strong title="${escapeHtml(modelValue)}">${escapeHtml(modelValue)}</strong></span>` : '';
+      const usageFact = this.display.showTokens ? `
+          <span><small>${escapeHtml(usageTitle)}</small><strong>${escapeHtml(usageValue)}</strong></span>` : '';
+      const contextFact = this.display.showTokens && contextValue ? `
+          <span><small>${t('contextWindow')}</small><strong title="${escapeHtml(t('contextWindowHint'))}">${escapeHtml(contextValue)}</strong></span>` : '';
+      const workspaceUsageFact = isWindowManager || !this.display.showTokens ? '' : `
+          <span><small>${t('workspaceRecorded')}</small><strong>${escapeHtml(workspaceUsage ? `${formatTokens(workspaceUsage.totalTokens)} ${tokenUnit()}` : t('waitingFirstGeneration'))}</strong></span>`;
       const conversationFact = agent.conversationTitle ? `
-          <span><small>CHAT</small><strong title="${escapeHtml(agent.conversationTitle)}">${escapeHtml(agent.conversationTitle)}</strong></span>` : '';
+          <span><small>${t('chat')}</small><strong title="${escapeHtml(agent.conversationTitle)}">${escapeHtml(agent.conversationTitle)}</strong></span>` : '';
+      const extraDetail = distinctActivityDetail(agent);
       const metadata = [
-        agent.detail,
-        agent.windowLabel ? `Cursor okno: ${agent.windowLabel}` : 'Cursor okno nezjištěno',
-        agent.isParallelWorker ? 'Paralelní pracovník' : undefined
+        extraDetail,
+        agent.windowLabel ? `${t('cursorWindowLabel')}: ${agent.windowLabel}` : t('cursorWindowNotDetected'),
+        agent.isParallelWorker ? t('parallelWorker') : undefined
       ].filter(Boolean).join(' · ');
       this.detailPanel.innerHTML = `
-        <button class="detail-close" type="button" aria-label="Zavřít detail">×</button>
+        <button class="detail-close" type="button" aria-label="${t('closeDetail')}">×</button>
         <span class="detail-kicker">${escapeHtml(`${workspace} · ${hierarchy}`)}</span>
         <h2>${escapeHtml(agent.displayName)}</h2>
-        <p>${escapeHtml(agent.currentTask ?? 'Bez aktuálního úkolu')}</p>
+        <p>${escapeHtml(this.display.showActivity ? activity : statusLabel(agent.status))}</p>
         <div class="detail-status"><i style="--detail-color: ${statusColor}"></i> ${escapeHtml(statusLabel(agent.status))}</div>
         <div class="detail-facts">
           ${conversationFact}
-          <span><small>${isWindowManager ? 'MODELY TÝMU' : 'MODEL'}</small><strong title="${escapeHtml(modelValue)}">${escapeHtml(modelValue)}</strong></span>
-          <span><small>${escapeHtml(usageTitle)}</small><strong>${escapeHtml(usageValue)}</strong></span>
-          <span><small>WORKSPACE / REPO</small><strong title="${escapeHtml(agent.workspacePath ?? workspace)}">${escapeHtml(workspace)}</strong></span>
-          <span><small>CURSOR OKNO</small><strong title="${escapeHtml(agent.windowId ?? 'nezjištěno')}">${escapeHtml(agent.windowLabel ?? 'nezjištěno')}</strong></span>
+          ${modelFact}
+          ${usageFact}
+          ${contextFact}
+          <span><small>${t('workspaceRepo')}</small><strong title="${escapeHtml(agent.workspacePath ?? workspace)}">${escapeHtml(workspace)}</strong></span>
+          <span><small>${t('cursorWindowLabel')}</small><strong title="${escapeHtml(agent.windowId ?? t('notDetected'))}">${escapeHtml(agent.windowLabel ?? t('notDetected'))}</strong></span>
           ${workspaceUsageFact}
         </div>
-        <div class="detail-note">${escapeHtml(metadata || 'Pozice a animace postavy jsou řízené aktuálním stavem agenta.')}</div>`;
+        <div class="detail-note">${escapeHtml(metadata || t('positionNote'))}</div>`;
     }
 
     this.detailPanel.hidden = false;
@@ -435,24 +544,24 @@ export class OfficeHud {
     const hasExactUsage = Boolean(usage && usage.total.requestCount > 0);
     this.detailPanel.classList.add('usage-details');
     this.detailPanel.innerHTML = `
-      <button class="detail-close" type="button" aria-label="Zavřít přehled">×</button>
-      <span class="detail-kicker">LOKÁLNÍ LEDGER · POUZE DOLOŽENÁ DATA</span>
-      <h2>Spotřeba modelů</h2>
+      <button class="detail-close" type="button" aria-label="${t('closeUsage')}">×</button>
+      <span class="detail-kicker">${t('ledgerKicker')}</span>
+      <h2>${t('modelUsage')}</h2>
       <p>${hasExactUsage
-        ? `Celkem ${escapeHtml(formatTokens(usage!.total.totalTokens))} tokenů v ${usage!.total.requestCount} generacích.`
-        : 'Cursor zatím neposkytl přesná tokenová data. Cursor Office nic neodhaduje a nulu nevydává za skutečnou spotřebu.'}</p>
+        ? t('usageTotal', { tokens: formatTokens(usage!.total.totalTokens), count: usage!.total.requestCount })
+        : t('usageMissing')}</p>
       <div class="usage-summary">
-        ${renderUsageTotal('VSTUP', usage?.total.inputTokens)}
-        ${renderUsageTotal('VÝSTUP', usage?.total.outputTokens)}
-        ${renderUsageTotal('CACHE READ', usage?.total.cacheReadTokens)}
-        ${renderUsageTotal('CACHE WRITE', usage?.total.cacheWriteTokens)}
+        ${renderUsageTotal(t('input'), usage?.total.inputTokens)}
+        ${renderUsageTotal(t('output'), usage?.total.outputTokens)}
+        ${renderUsageTotal(t('cacheRead'), usage?.total.cacheReadTokens)}
+        ${renderUsageTotal(t('cacheWrite'), usage?.total.cacheWriteTokens)}
       </div>
       <div class="usage-columns">
-        ${renderUsageBuckets('REPOZITÁŘE / ADRESÁŘE', usage?.byWorkspace)}
-        ${renderUsageBuckets('MODELY', usage?.byModel)}
-        ${renderUsageBuckets('REPOZITÁŘ × MODEL', usage?.byWorkspaceModel)}
+        ${renderUsageBuckets(t('repositories'), usage?.byWorkspace)}
+        ${renderUsageBuckets(t('models'), usage?.byModel)}
+        ${renderUsageBuckets(t('repositoryModel'), usage?.byWorkspaceModel)}
       </div>
-      <div class="detail-note">Model pochází z oficiálního hook pole model/model_id. Tokeny se započítají jen tehdy, pokud je runtime skutečně předá; prompt ani odpověď se do ledgeru neukládají.</div>`;
+      <div class="detail-note">${t('ledgerNote')}</div>`;
     this.detailPanel.hidden = false;
     requireElement<HTMLButtonElement>(this.detailPanel, '.detail-close').addEventListener('click', () => {
       this.showUsageDetails = false;
@@ -492,40 +601,173 @@ function renderUsageBuckets(title: string, buckets?: UsageLedgerSnapshot['byWork
     ? buckets.slice(0, 12).map(bucket => `<li title="${escapeHtml(bucket.key)}">
         <span>${escapeHtml(bucket.key)}</span>
         <strong>${escapeHtml(formatTokens(bucket.totalTokens))}</strong>
-        <small>${bucket.requestCount} gen.</small>
+        <small>${bucket.requestCount} ${t('generationAbbr')}</small>
       </li>`).join('')
-    : '<li class="usage-empty">Nejsou k dispozici doložená data.</li>';
+    : `<li class="usage-empty">${t('noEvidenceData')}</li>`;
   return `<section class="usage-buckets"><h3>${escapeHtml(title)}</h3><ul>${rows}</ul></section>`;
 }
 
 function formatTokens(value: number): string {
-  return new Intl.NumberFormat('cs-CZ', {
+  return new Intl.NumberFormat(localeTag(), {
     notation: value >= 10_000 ? 'compact' : 'standard',
     maximumFractionDigits: 1
   }).format(value);
 }
 
-function formatAgentModel(agent: AgentSnapshot, detailed = false): string {
-  const isManager = agent.id.startsWith('cursor-window-manager-');
-  if (isManager) {
-    const models = agent.teamModels?.filter(Boolean) ?? [];
-    if (models.length === 0) return detailed ? 'čeká na první model z Cursor hooku' : 'modely týmu čekají na hook';
-    if (models.length <= 2) return models.join(' + ');
-    return `${models.slice(0, 2).join(' + ')} + ${models.length - 2} další`;
+export function readHudDisplayPreferences(root?: HTMLElement | null): HudDisplayPreferences {
+  const defaults: HudDisplayPreferences = { showModel: true, showTokens: true, showActivity: true };
+  const encoded = (root ?? document.getElementById('app'))?.dataset.officePreferences;
+  if (!encoded) {
+    return defaults;
   }
-  return agent.model?.trim() || (detailed ? 'čeká na model z Cursor hooku' : 'model čeká na hook');
+  try {
+    const parsed = JSON.parse(decodeURIComponent(encoded)) as OfficePreferences;
+    return {
+      showModel: parsed.showModel !== false,
+      showTokens: parsed.showTokens !== false,
+      showActivity: parsed.showActivity !== false
+    };
+  } catch {
+    return defaults;
+  }
 }
 
-function formatAgentTokens(agent: AgentSnapshot): string {
-  if (agent.usage) {
-    const scope = agent.usageScope === 'workspace' ? ' / repo' : ' / generace';
-    return `${formatTokens(agent.usage.totalTokens)} tok.${scope}`;
+function isWindowManager(agent: AgentSnapshot): boolean {
+  return agent.id.startsWith('cursor-window-manager-');
+}
+
+export function formatAgentModel(agent: AgentSnapshot, detailed = false): string {
+  if (isWindowManager(agent)) {
+    const models = agent.teamModels?.filter(Boolean) ?? [];
+    if (models.length === 0) return detailed ? t('teamModelsWaitingLong') : t('teamModelsWaitingShort');
+    if (models.length <= 2) {
+      return appendModelParams(models.join(' + '), agent, detailed);
+    }
+    return appendModelParams(
+      `${models.slice(0, 2).join(' + ')} + ${t('moreModels', { count: models.length - 2 })}`,
+      agent,
+      detailed
+    );
   }
-  return agent.status === 'working' ? 'tokeny po dokončení' : 'tokeny Cursor neposlal';
+  const model = agent.model?.trim();
+  if (!model) {
+    return detailed ? t('modelWaitingLong') : t('modelWaitingShort');
+  }
+  return appendModelParams(model, agent, detailed);
+}
+
+function appendModelParams(model: string, agent: AgentSnapshot, detailed: boolean): string {
+  if (!detailed || isWindowManager(agent)) {
+    return model;
+  }
+  const params = [
+    agent.modelParams?.thinking ? `${t('modelThinking')} ${agent.modelParams.thinking}` : undefined,
+    agent.modelParams?.effort ? `${t('modelEffort')} ${agent.modelParams.effort}` : undefined,
+    agent.modelParams?.context ? `${t('modelContextKnob')} ${agent.modelParams.context}` : undefined
+  ].filter(Boolean);
+  return params.length > 0 ? `${model} · ${params.join(' · ')}` : model;
+}
+
+export function formatAgentTokens(agent: AgentSnapshot): string {
+  if (isWindowManager(agent)) {
+    if (agent.usage) {
+      return `${formatTokens(agent.usage.totalTokens)} tok. / ${t('repositoryScope')}`;
+    }
+    return t('workspaceLedgerWaitingShort');
+  }
+  if (agent.usage) {
+    return `${formatTokens(agent.usage.totalTokens)} tok. / ${t('generationScope')}`;
+  }
+  return agent.status === 'working' ? t('tokensAfterCompletion') : t('tokensNotSent');
+}
+
+function formatInspectorUsage(
+  agent: AgentSnapshot,
+  workspaceUsage?: UsageLedgerSnapshot['byWorkspace'][number]
+): string {
+  if (isWindowManager(agent)) {
+    const evidenced = agent.usage ?? workspaceUsage;
+    return evidenced
+      ? `${formatTokens(evidenced.totalTokens)} ${tokenUnit()}`
+      : t('workspaceLedgerWaitingLong');
+  }
+  if (agent.usage) {
+    return `${formatTokens(agent.usage.totalTokens)} ${tokenUnit()}`;
+  }
+  return agent.status === 'working' ? t('afterGeneration') : t('cursorDidNotSend');
+}
+
+export function formatAgentContext(agent: AgentSnapshot, detailed = false): string | undefined {
+  const usage = agent.contextUsage;
+  if (!usage) {
+    return undefined;
+  }
+  const parts: string[] = [];
+  if (usage.contextUsagePercent != null) {
+    parts.push(formatPercent(usage.contextUsagePercent));
+  }
+  if (usage.contextTokens != null && usage.contextWindowSize != null) {
+    parts.push(`${formatTokens(usage.contextTokens)}/${formatTokens(usage.contextWindowSize)}`);
+  } else if (usage.contextTokens != null) {
+    parts.push(formatTokens(usage.contextTokens));
+  } else if (usage.contextWindowSize != null) {
+    parts.push(formatTokens(usage.contextWindowSize));
+  }
+  if (parts.length === 0) {
+    return undefined;
+  }
+  const value = parts.join(' · ');
+  return detailed ? value : `${t('contextWindowShort')} ${value}`;
+}
+
+export function formatAgentActivity(agent: AgentSnapshot): string {
+  const raw = agent.currentTask?.trim() || agent.detail?.trim();
+  if (!raw) {
+    return t('noCurrentTask');
+  }
+  return limitActivity(sanitizeActivityText(raw), activityLimit);
+}
+
+function distinctActivityDetail(agent: AgentSnapshot): string | undefined {
+  const detail = agent.detail?.trim();
+  const task = agent.currentTask?.trim();
+  if (!detail || detail === task) {
+    return undefined;
+  }
+  return limitActivity(sanitizeActivityText(detail), activityLimit);
+}
+
+function sanitizeActivityText(value: string): string {
+  return value.replace(/(?:[A-Za-z]:)?(?:[\\/][^\\/:*?"<>|\n]+)+/gu, match => fileBasename(match));
+}
+
+function fileBasename(value: string): string {
+  const trimmed = value.replace(/[\\/]+$/u, '');
+  return trimmed.split(/[\\/]/u).filter(Boolean).at(-1) ?? trimmed;
+}
+
+function limitActivity(value: string, maximumLength: number): string {
+  if (value.length <= maximumLength) {
+    return value;
+  }
+  let prefix = value.slice(0, maximumLength - 1).trimEnd();
+  const wordBoundary = prefix.lastIndexOf(' ');
+  if (wordBoundary >= maximumLength / 2) {
+    prefix = prefix.slice(0, wordBoundary);
+  }
+  return `${prefix}…`;
+}
+
+function tokenUnit(): string {
+  return t('tokensMetric').replace('*', '').trim();
+}
+
+function formatPercent(value: number): string {
+  return `${new Intl.NumberFormat(localeTag(), { maximumFractionDigits: 1 }).format(value)}%`;
 }
 
 function formatManagerCount(value: number): string {
-  if (value === 1) return '1 manažer';
-  if (value >= 2 && value <= 4) return `${value} manažeři`;
-  return `${value} manažerů`;
+  if (value === 1) return t('managerOne');
+  if (value >= 2 && value <= 4) return t('managerFew', { count: value });
+  return t('managerMany', { count: value });
 }

@@ -11,13 +11,15 @@ Oficiální Cursor Hooks běží jako lokální procesy nad JSON přes standardn
 - `preToolUse` – začátek práce nástroje bez uložení vstupu,
 - `postToolUse` / `postToolUseFailure` – činnost a chyba,
 - `afterAgentThought` – změna aktivity bez ukládání reasoning textu,
+- `afterFileEdit` – úprava souboru; bridge si nechá jen basename, ne cestu ani obsah,
+- `preCompact` – zaplnění kontextového okna, nikoli účtovaná generace,
 - `afterAgentResponse` – dokončení odpovědi bez ukládání jejího textu,
 - `subagentStart` / `subagentStop` – příchod a dokončení, chyba nebo přerušení podagenta,
 - `stop` – konec agent loopu.
 
-Společný payload obsahuje stabilní `conversation_id`, `generation_id`, model, `workspace_roots`, verzi Cursoru a volitelnou `transcript_path`. Cursor Office instaluje všechny uvedené hooky jako pasivní pozorovatele: vrací prázdnou odpověď, nic nepovolují, nezakazují ani nemění. Metadata transkriptu zůstávají fallbackem pro verze a workflow, které některý lifecycle hook nevyšlou.
+Společný payload obsahuje stabilní `conversation_id`, `generation_id`, model, `workspace_roots`, verzi Cursoru a volitelnou `transcript_path`. Od Cursoru 3.18 přichází `workspace_roots` na Windows jako URI cesta `/c:/Users/...`; bridge ji před korelací s heartbeat okna převede na běžnou filesystem cestu. Cursor Office instaluje všechny uvedené hooky jako pasivní pozorovatele (`observedEvents` v instalátoru, včetně `afterFileEdit` a `preCompact`): vrací prázdnou odpověď, nic nepovolují, nezakazují ani nemění. Metadata transkriptu zůstávají fallbackem pro verze a workflow, které některý lifecycle hook nevyšlou.
 
-Bridge je fail-open. Z raw payloadu neukládá prompt, task text, reasoning, příkaz, obsah souboru ani výstup nástroje. Do lokální spool fronty předá jen normalizovaná metadata potřebná pro stav postavy.
+Bridge je fail-open. Z raw payloadu neukládá prompt, reasoning, příkaz, obsah souboru ani výstup nástroje. Krátký očištěný `task`/`description` podagenta smí zůstat jako popisek práce (max. 140 znaků). Do lokální spool fronty předá jen normalizovaná metadata potřebná pro stav postavy.
 
 Spool `%LOCALAPPDATA%/CursorOffice/events-v3` není work queue s jediným spotřebitelem. Události zůstávají po dobu deseti minut jako lokální broadcast, každý host spuštěný jednotlivým Cursor oknem vede vlastní seznam přečtených souborů a úklid nastane až po expiraci. Verzovaný adresář není sledovaný staršími destruktivními hosty, kteří mohou stále běžet v nerestartovaných Cursor oknech. Nově spuštěný host přehraje nejvýše dvě minuty nedávných událostí, aby obnovil aktivní projekci bez dlouhé historické laviny.
 
@@ -30,11 +32,17 @@ Spool `%LOCALAPPDATA%/CursorOffice/events-v3` není work queue s jediným spotř
 
 Webview tyto signály frontuje. Jedna postava proto nevede několik rozhovorů současně a pozdější handoff počká na dokončení dřívější interakce. Přestože Cursor tyto hooky umí používat i pro řízení oprávnění, bridge Cursor Office jejich rozhodovací výstupy vůbec nevytváří.
 
-### Model a tokenová spotřeba
+### Model, činnost, tokeny a kontext
 
-Společný hook payload poskytuje `model` / `model_id`. Veřejný Hooks kontrakt přesné tokeny negarantuje; pokud je konkrétní runtime přesto dodá jako `input_tokens`/`inputTokens`, `output_tokens`/`outputTokens`, `cache_read_tokens`/`cacheReadTokens` a `cache_write_tokens`/`cacheWriteTokens`, Cursor Office je bez odhadu zapíše do lokálního ledgeru. Stejnou generaci nezapočítá dvakrát a její průběžné čítače slučuje maximem. Agregace jsou dostupné celkem, po úplné cestě workspace, po modelu, po jejich kombinaci a po lokálním kalendářním dni.
+Model pochází ze společného hook payloadu: pole `model` nebo `model_id`. Podagent může dodat vlastní `subagent_model`; jinak zdědí model rodičovské události. Cursor Office model nedoplňuje z výběru v UI. Pokud pozdější hook stejné `generation_id` model vynechá, `AgentMonitor` ponechá poslední prokázanou hodnotu. Volitelné `model_params` (`thinking`, `effort`, `context`) se berou stejně: jen oznámené knoby, bez raw parametrů a bez textu promptu.
 
-Tato data nejsou totéž co úplný účet Cursoru. UI proto zobrazuje „zaznamenané tokeny“ a chybějící údaje nikdy nenahrazuje nulou nebo odhadem ceny. ACP/CLI adaptér bude moci v budoucnu přidat přesnou spotřebu z runtime výsledku stejným doménovým kontraktem.
+Veřejný Cursor Hooks kontrakt **účtované (billing) tokeny negarantuje**. Když je konkrétní runtime přesto dodá jako `input_tokens`/`inputTokens`, `output_tokens`/`outputTokens`, `cache_read_tokens`/`cacheReadTokens` a `cache_write_tokens`/`cacheWriteTokens` (na kořeni nebo v objektu `usage`), bridge je předá jako generační `usage`. Lokální ledger je zapíše jen tehdy, když existuje `generation_id` a součet čítačů je větší než nula. Ledger **nic neodhaduje**: chybějící spotřebu nenahrazuje nulou, délkou textu ani cenou. Stejnou generaci nezapočítá dvakrát a průběžné čítače slučuje maximem. Agregace jsou celkem, po úplné cestě workspace, po modelu, po jejich kombinaci a po lokálním kalendářním dni.
+
+`preCompact` je jiný údaj: zaplnění **kontextového okna** (`context_tokens`, `context_window_size`, `context_usage_percent`). Není to účtovaná generace. Hodnota jde do `contextUsage` na snapshotu a do UI jako „kontextové okno“. Do `usage` ani do ledgeru se nezapočítává.
+
+Činnost agenta je krátký privacy-safe popisek, ne obsah konverzace. Bridge z hooku bere název nástroje, „analyzuje další krok“, basename upraveného souboru, očištěný `task`/`description` podagenta (max. 140 znaků) nebo stav komprese kontextu. Prompt, reasoning, příkaz, obsah souboru, výstup nástroje i `summary` se zahazují.
+
+Tato data nejsou totéž co úplný účet Cursoru. UI proto rozlišuje „zaznamenané tokeny“ poslední generace, workspace agregaci manažera a volitelné zaplnění kontextu. Chybějící údaj zůstane prázdný. ACP/CLI adaptér bude moci v budoucnu přidat přesnou spotřebu z runtime výsledku stejným doménovým kontraktem.
 
 Oficiální reference: [Cursor Hooks](https://cursor.com/docs/hooks).
 
@@ -45,7 +53,7 @@ Když některá verze Cursoru nebo konkrétní workflow nevyšle hook pro vznik 
 - hlavní transcript → `primary` agent,
 - soubor v `subagents/` → `subagent` s rodičem podle adresáře konverzace.
 
-Změna vlastního souboru v posledních 3 minutách znamená `working`. Pokud se rodičovský transcript ještě hýbe, podagent zůstává `working` až 8 minut i bez vlastního zápisu, protože Cursor často nepřepisuje soubor během přemýšlení nebo dlouhého nástroje. Je-li aktivní kterýkoli podagent, jeho hlavní konverzace zůstává `working` s činností „koordinuje aktivní podagenty“, i když hook mezitím poslal `afterAgentResponse`. Tool hooky podagenta běžně přijdou pod novým `conversation_id` bez vazby na rodiče; bridge proto pamatuje `subagentStart` a pozdější nástroje přiřadí stejnému pracovníkovi. Terminální stavy `completed`, `offline` a `error` smí nastavit pouze skutečný lifecycle hook; fallback je nesmí zrušit ani znovu označit jako pracující.
+Změna vlastního souboru v posledních 3 minutách znamená `working`. Pokud se rodičovský transcript ještě hýbe, podagent zůstává `working` až 8 minut i bez vlastního zápisu, protože Cursor často nepřepisuje soubor během přemýšlení nebo dlouhého nástroje. Je-li aktivní kterýkoli podagent, jeho hlavní konverzace zůstává `working` s činností „koordinuje aktivní podagenty“, i když hook mezitím poslal `afterAgentResponse`. Tool hooky podagenta běžně přijdou pod novým `conversation_id` bez vazby na rodiče; bridge proto pamatuje `subagentStart` a pozdější nástroje přiřadí stejnému pracovníkovi. Terminální stavy `completed`, `offline` a `error` smí nastavit pouze skutečný lifecycle hook. Starší fallback je nesmí zrušit; novější zápis do transcriptu může stejné ID znovu označit jako pracující.
 
 ## 3. Cursor CLI / ACP – budoucí řídicí adaptéry
 

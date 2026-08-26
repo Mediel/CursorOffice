@@ -10,6 +10,21 @@ public sealed record TokenUsage(
     public long TotalTokens => InputTokens + OutputTokens + CacheReadTokens + CacheWriteTokens;
 }
 
+/// <summary>Safe model knobs announced by Cursor. Prompt text and other raw params are never stored.</summary>
+public sealed record ModelParams(
+    string? Thinking,
+    string? Effort,
+    string? Context);
+
+/// <summary>
+/// Context-window fill from preCompact. Missing evidence is null, never a zeroed estimate,
+/// and these values are not generation usage.
+/// </summary>
+public sealed record ContextUsage(
+    long? ContextTokens,
+    long? ContextWindowSize,
+    double? ContextUsagePercent);
+
 public sealed record UsageBucket(
     string Key,
     long InputTokens,

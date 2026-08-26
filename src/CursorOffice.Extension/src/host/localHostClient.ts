@@ -20,11 +20,19 @@ export type HostAgentSnapshot = {
   windowLabel?: string | null;
   windowCorrelation?: 'focused' | 'conversation' | 'workspace' | null;
   model?: string | null;
+  modelParams?: HostModelParams | null;
   isParallelWorker?: boolean;
   generationId?: string | null;
   usage?: HostTokenUsage | null;
+  contextUsage?: HostContextUsage | null;
   interactionKind?: 'userPrompt' | 'agentResponse' | 'delegationStarted' | 'handoffCompleted' | null;
   isFallback?: boolean;
+};
+
+export type HostModelParams = {
+  thinking?: string | null;
+  effort?: string | null;
+  context?: string | null;
 };
 
 export type HostTokenUsage = {
@@ -33,6 +41,12 @@ export type HostTokenUsage = {
   cacheReadTokens: number;
   cacheWriteTokens: number;
   totalTokens: number;
+};
+
+export type HostContextUsage = {
+  contextTokens?: number | null;
+  contextWindowSize?: number | null;
+  contextUsagePercent?: number | null;
 };
 
 export type HostUsageBucket = HostTokenUsage & {

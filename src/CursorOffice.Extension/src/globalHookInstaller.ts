@@ -22,6 +22,8 @@ const observedEvents = [
   'postToolUseFailure',
   'afterAgentThought',
   'afterAgentResponse',
+  'afterFileEdit',
+  'preCompact',
   'subagentStart',
   'subagentStop',
   'stop'

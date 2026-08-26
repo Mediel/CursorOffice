@@ -36,7 +36,10 @@ export function projectWindowTeams(bootstrap: OfficeBootstrap): AgentSnapshot[] 
   }
   const workers = correlatedAgents.map(agent => {
     if (agent.kind === 'subagent') {
-      return agent;
+      return {
+        ...agent,
+        ...provenRuntimeFields(agent)
+      };
     }
     const parentAgentId = agent.windowId
       ? managerIdByWindow.get(agent.windowId)
@@ -67,7 +70,7 @@ export function projectWindowTeams(bootstrap: OfficeBootstrap): AgentSnapshot[] 
       kind: 'subagent' as const,
       parentAgentId,
       interactionKind: transferredInteraction,
-      usageScope: agent.usage ? 'generation' as const : undefined
+      ...provenRuntimeFields(agent)
     };
   });
 
@@ -260,15 +263,31 @@ function createWindowManager(
     kind: 'primary',
     workspace,
     workspacePath,
-    model: teamModels.length === 1 ? teamModels[0] : undefined,
     teamModels,
     usage: workspaceUsage,
     usageScope: workspaceUsage ? 'workspace' : undefined,
-    generationId: activeInteraction?.generationId,
     interactionKind: activeInteraction?.interactionKind,
     windowId: window.id,
     windowLabel: window.label,
     windowCorrelation: window.isFocused ? 'focused' : 'workspace'
+  };
+}
+
+function provenRuntimeFields(agent: AgentSnapshot): Pick<
+  AgentSnapshot,
+  'model' | 'modelParams' | 'usage' | 'contextUsage' | 'currentTask' | 'generationId' | 'usageScope'
+> {
+  const model = agent.model?.trim();
+  const currentTask = agent.currentTask?.trim();
+  const generationId = agent.generationId?.trim();
+  return {
+    model: model || undefined,
+    modelParams: agent.modelParams ?? undefined,
+    usage: agent.usage ?? undefined,
+    contextUsage: agent.contextUsage ?? undefined,
+    currentTask: currentTask || undefined,
+    generationId: generationId || undefined,
+    usageScope: agent.usage ? 'generation' : agent.usageScope
   };
 }
 

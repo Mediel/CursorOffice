@@ -1,11 +1,15 @@
 import './styles.css';
-import type { HostMessage, OfficeBootstrap } from './contracts';
+import { applyRoleColors, type HostMessage, type OfficeBootstrap, type OfficePreferences, type OfficeSettingsSnapshot } from './contracts';
+import { setLanguage } from './i18n';
 import { projectWindowTeams } from './teamProjection';
 import { requireElement } from './ui/dom';
 import { OfficeHud } from './ui/OfficeHud';
 import { OfficeWorld, type OfficeWorldPersistedState } from './world/OfficeWorld';
 
 const root = requireElement<HTMLDivElement>(document, '#app');
+const preferences = readEmbeddedPreferences(root);
+setLanguage(preferences.language);
+applyRoleColors(preferences.roleColors);
 const vscodeApi = typeof acquireVsCodeApi === 'function'
   ? acquireVsCodeApi<OfficeWorldPersistedState>()
   : undefined;
@@ -52,6 +56,26 @@ const standaloneCameraState: OfficeWorldPersistedState = workDemo
       }
     : {};
 
+function readEmbeddedPreferences(element: HTMLElement): OfficePreferences {
+  const encoded = element.dataset.officePreferences;
+  if (encoded) {
+    try {
+      return JSON.parse(decodeURIComponent(encoded)) as OfficePreferences;
+    } catch {
+      // Invalid embedded settings fall back to a safe English presentation.
+    }
+  }
+  return {
+    language: 'en',
+    roleColors: {
+      owner: '#32c477',
+      manager: '#00c7c7',
+      chat: '#2f6bff',
+      subagent: '#b084ff'
+    }
+  };
+}
+
 function select(id?: string): void {
   world.select(id);
   hud.select(id);
@@ -60,7 +84,7 @@ function select(id?: string): void {
 hud = new OfficeHud(root, select, windowId => {
   selectedWindowId = windowId;
   renderBootstrap();
-});
+}, message => vscodeApi?.postMessage(message));
 world = new OfficeWorld(
   hud.canvas,
   select,
@@ -148,6 +172,19 @@ function labelTeamMembers(agents: OfficeBootstrap['agents']): OfficeBootstrap['a
 window.addEventListener('message', (event: MessageEvent<HostMessage>) => {
   if (event.data.type === 'office.bootstrap' && event.data.payload) {
     applyBootstrap(event.data.payload as OfficeBootstrap);
+    return;
+  }
+  if (event.data.type === 'office.preferences' && event.data.payload) {
+    const settings = event.data.payload as OfficeSettingsSnapshot;
+    if (!latestBootstrap) {
+      hud.applyPreferences(settings);
+      return;
+    }
+    latestBootstrap = {
+      ...latestBootstrap,
+      settings: { ...latestBootstrap.settings, ...settings }
+    };
+    renderBootstrap();
   }
 });
 

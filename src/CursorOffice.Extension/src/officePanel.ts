@@ -4,11 +4,17 @@ import { userInfo } from 'node:os';
 import { extname } from 'node:path';
 import * as vscode from 'vscode';
 import type { LocalHostClient } from './host/localHostClient';
-import { ownerRoleFor, readOfficePreferences } from './officePreferences';
+import {
+  applyOfficeSettingUpdate,
+  ownerRoleFor,
+  readOfficePreferences,
+  readOfficeSettingsSnapshot
+} from './officePreferences';
 import type { WindowPresenceReporter } from './windowPresenceReporter';
 
 type WebviewMessage = {
   type?: unknown;
+  payload?: unknown;
 };
 
 export class OfficePanel {
@@ -37,8 +43,10 @@ export class OfficePanel {
           || event.affectsConfiguration('cursorOffice.shirtColors')) {
           this.configureWebview();
         } else if (event.affectsConfiguration('cursorOffice.ownerName')
+          || event.affectsConfiguration('cursorOffice.ownerAppearance')
           || event.affectsConfiguration('cursorOffice.officeName')
-          || event.affectsConfiguration('cursorOffice.officeLogoPath')) {
+          || event.affectsConfiguration('cursorOffice.officeLogoPath')
+          || event.affectsConfiguration('cursorOffice.hud')) {
           this.sendBootstrap();
         }
       },
@@ -99,6 +107,26 @@ export class OfficePanel {
   private onMessage(message: WebviewMessage): void {
     if (message.type === 'webview.ready') {
       this.sendBootstrap();
+      return;
+    }
+    if (message.type === 'office.settings.selectLogo') {
+      void vscode.commands.executeCommand('cursorOffice.selectOfficeLogo');
+      return;
+    }
+    if (message.type === 'office.settings.update') {
+      void this.updateSettingFromWebview(message.payload);
+    }
+  }
+
+  private async updateSettingFromWebview(payload: unknown): Promise<void> {
+    const update = asSettingUpdate(payload);
+    if (!update) {
+      this.sendPreferences();
+      return;
+    }
+    const applied = await applyOfficeSettingUpdate(update.key, update.value);
+    if (!applied) {
+      this.sendPreferences();
     }
   }
 
@@ -110,6 +138,7 @@ export class OfficePanel {
       .get<string>('ownerName', '')
       .trim();
 
+    const settings = readOfficeSettingsSnapshot();
     void this.panel.webview.postMessage({
       type: 'office.bootstrap',
       payload: {
@@ -120,19 +149,29 @@ export class OfficePanel {
         owner: {
           displayName: configuredName || userInfo().username,
           role: ownerRoleFor(preferences.language),
-          accent: '#f4b85c'
+          accent: '#f4b85c',
+          appearance: preferences.ownerAppearance
         },
         agents: this.host.currentAgents,
         usage: this.host.currentUsage,
         currentWindow: this.windowPresence.currentWindow,
-        windows: this.windowPresence.activeWindows
+        windows: this.windowPresence.activeWindows,
+        settings
       }
     });
     this.panel.title = officeName;
   }
 
+  private sendPreferences(): void {
+    void this.panel.webview.postMessage({
+      type: 'office.preferences',
+      payload: readOfficeSettingsSnapshot()
+    });
+  }
+
   private getHtml(): string {
     const preferences = readOfficePreferences();
+    const settings = readOfficeSettingsSnapshot();
     const webview = this.panel.webview;
     const scriptUri = webview.asWebviewUri(
       vscode.Uri.joinPath(this.extensionUri, 'media', 'office.js')
@@ -152,7 +191,7 @@ export class OfficePanel {
     <title>Cursor Office</title>
   </head>
   <body>
-    <div id="app" data-office-preferences="${encodeURIComponent(JSON.stringify(preferences))}"></div>
+    <div id="app" data-office-preferences="${encodeURIComponent(JSON.stringify(preferences))}" data-office-settings="${encodeURIComponent(JSON.stringify(settings))}"></div>
     <script nonce="${nonce}" type="module" src="${scriptUri}"></script>
   </body>
 </html>`;
@@ -167,6 +206,14 @@ export class OfficePanel {
       this.disposables.pop()?.dispose();
     }
   }
+}
+
+function asSettingUpdate(payload: unknown): { key: string; value: unknown } | undefined {
+  if (!payload || typeof payload !== 'object') {
+    return undefined;
+  }
+  const record = payload as { key?: unknown; value?: unknown };
+  return typeof record.key === 'string' ? { key: record.key, value: record.value } : undefined;
 }
 
 function readOfficeName(): string {

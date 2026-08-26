@@ -19,9 +19,9 @@ majitel kanceláře (uživatel)
 |---|---|---|---|
 | Majitel | Lokálního uživatele | Jedna postava v kanceláři | Nemá model ani runtime tokeny |
 | Manažer | Jedno živé desktopové okno Cursoru | Dočasné ID extension hostu a heartbeat | Ukazuje souhrn týmu; nemá vlastní generaci |
-| Hlavní chat | Jednu Cursor konverzaci | `conversation_id` | Patří sem model, generace a spotřeba skutečného chatu |
+| Hlavní chat | Jednu Cursor konverzaci | `conversation_id` | Model ze společného payloadu, generační tokeny, volitelný kontext z `preCompact` a privacy-safe činnost |
 | Vedoucí agent / senior | Hlavní chat, který právě má potomky | Stejné `conversation_id` jako chat | Stejná runtime data jako hlavní chat |
-| Subagent / pracovník | Jednu konkrétní instanci delegované práce | ID podagenta a ID rodičovské konverzace | Vlastní model a tokeny pouze tehdy, když je runtime oznámí |
+| Subagent / pracovník | Jednu konkrétní instanci delegované práce | ID podagenta a ID rodičovské konverzace | Vlastní model, tokeny, kontext a činnost pouze tehdy, když je runtime oznámí |
 
 Workspace nebo repozitář je organizační kontext, nikoli automaticky další postava. Manažer se jmenuje například `Manažer Frontend` nebo `Manažer Backend`. Pokud je otevřeno více oken stejného workspace, jméno dostane krátký suffix okna.
 
@@ -29,7 +29,7 @@ Workspace nebo repozitář je organizační kontext, nikoli automaticky další 
 
 Stálá barva košile vyjadřuje roli: majitel je zelený, manažer výrazně tyrkysový, hlavní chat/senior sytě královsky modrý a subagent fialový. Tyrkysová manažera a modrá seniora mají záměrně velký rozdíl odstínu, aby byly role čitelné i v tmavé scéně a při pohledu z dálky. Manažer, chat/senior a subagent nosí stejnou vodorovnou bílou obdélníkovou jmenovku s tmavým tiskem; její barva se podle role ani stavu nemění. Majitel jmenovku na košili nenosí. Jeho jmenovka nad hlavou zůstává zlatá jako decentní označení role; samotná postava nenosí korunu ani trvale plovoucí korunkovou emoci. Odstín košile se podle stabilní identity mírně liší, ale zůstává ve své rolové barevné rodině. Proměnná barva světelného kruhu, jmenovky nad hlavou a stavového textu vyjadřuje lifecycle stav podle tabulky níže. Spodní legenda i avatary v týmovém panelu používají stejnou mapu. Barvy místností již nejsou vydávány za role ani za stav postavy.
 
-Vzhled postavy se deterministicky odvozuje z její stabilní identity. Postavy proto mohou být nižší, vyšší, štíhlé, běžné, širší, podsadité nebo atletické a používají různé odstíny pokožky a vlasů. Účesy zahrnují pleš, velmi krátké a krátké vlasy, pěšinku, bob, delší vlasy, kudrny, drdol a mohykán. Část postav má vousy: strnisko, knír, podbradník, kotvu, plnovous, kotlety nebo krátké kotlety; většina zůstává hladce oholená. Brýle jsou méně časté než vousy, sluneční brýle jen výjimečně. Subagenti / workeři často nosí čepici, kšiltovku, kšilt nebo velká sluchátka; pod čepicí mají kratší vlasy, aby doplněk zůstal čitelný z horní kamery. Hlavní chat má tyto doplňky jen výjimečně. Manažer je upravenější: jen střídmé účesy, případně knír nebo strnisko a dioptrické brýle, límec a kravata, bez čepice, sluchátek i slunečních brýlí. Majitel má stabilní reprezentativní executive variantu: plný tmavý účes, zřetelnou pěšinku a tvarovanou patku, která je čitelná i z horní izometrické kamery, ale žádné kotlety, vousy ani brýle. Stejná identita dostane po reloadu stejný vzhled; rozměrové odchylky jsou omezené tak, aby zůstala zachována navigace, sezení a průchod dveřmi.
+Vzhled postavy se deterministicky odvozuje z její stabilní identity. Postavy proto mohou být nižší, vyšší, štíhlé, běžné, širší, podsadité nebo atletické a používají různé odstíny pokožky a vlasů. Váhy odpovídají běžnější populaci: převažují tmavé a hnědé vlasy a krátké, upravené nebo středně dlouhé účesy; šediny, výrazná barva, pleš a mohykán jsou vzácnější. Část postav má vousy: strnisko, knír, podbradník, kotvu, plnovous, kotlety nebo krátké kotlety; většina zůstává hladce oholená. Brýle jsou méně časté než vousy, sluneční brýle jen výjimečně. Subagenti / workeři často nosí čepici, kšiltovku, kšilt nebo velká sluchátka; pod čepicí mají kratší vlasy, aby doplněk zůstal čitelný z horní kamery. Hlavní chat má tyto doplňky jen výjimečně. Manažer je upravenější: převažuje patka, pěšinka nebo krátký účes, barva vlasů se však stejně jako u ostatních stabilně liší podle identity. Může mít knír, strnisko nebo dioptrické brýle, límec a kravatu, ale ne čepici, sluchátka ani sluneční brýle. Majitel má výchozí reprezentativní executive variantu, ale jeho účes, barvu vlasů, pokožku, vousy a brýle lze explicitně nastavit; nic z toho se negeneruje náhodně. Stejná identita dostane po reloadu stejný vzhled; rozměrové odchylky jsou omezené tak, aby zůstala zachována navigace, sezení a průchod dveřmi.
 
 ### Jedno okno a více chatů
 
@@ -41,7 +41,7 @@ Název chatu se získává pomocí stabilního `conversation_id`. Na Windows hos
 
 Každé aktivované okno extension zapisuje každé dvě sekundy malý heartbeat s dočasným ID okna, PID extension hostu, názvem workspace, cestami otevřených workspace a informací o zaměření. Záznam mrtvého procesu se zahodí okamžitě a heartbeat starší než sedm sekund expiruje jako záložní lease. Když znovuotevřené okno dostane nové runtime ID, logický manažer stejného workspace převezme původní vizuální postavu a její polohu; dvě skutečně současně živá okna stejného workspace se neslučují.
 
-Cursor Hooks neposkytují veřejné ID desktopového okna. Při `beforeSubmitPrompt` proto bridge spojí konverzaci s právě zaměřeným živým oknem, které odpovídá workspace. Jednoznačnou vazbu si uloží pod kryptografickým hashem ID konverzace. Pokud je případ nejednoznačný, systém nic nehádá a chat zůstane ve filtru `Nezařazené`.
+Cursor Hooks neposkytují veřejné ID desktopového okna. Při `beforeSubmitPrompt` proto bridge spojí konverzaci s právě zaměřeným živým oknem, které odpovídá workspace. Cesty z hook payloadu se nejdřív normalizují, aby URI tvar `/c:/Users/...` seděl na heartbeat `C:\Users\...`. Jednoznačnou vazbu si uloží pod kryptografickým hashem ID konverzace. Pokud je případ nejednoznačný, systém nic nehádá a chat zůstane ve filtru `Nezařazené`.
 
 ## Zdroje pravdy a jejich priorita
 
@@ -51,7 +51,7 @@ Cursor Office slučuje několik lokálních zdrojů. Vyšší zdroj nesmí být 
 2. **Lokální metadata transcript souborů** – fallback pro workflow, které nevyšle potřebný hook. Sleduje pouze cestu, velikost a čas změny; obsah `.jsonl` neotevírá.
 3. **Prezentační projekce Webview** – z agentů a živých oken sestaví manažery, týmovou hierarchii, cíle v místnostech a animace. Nemění skutečný Cursor stav.
 
-Jakmile bylo stejné ID pozorováno přes skutečný hook, fallback metadata nesmí zrušit terminální stav `completed`, `offline` ani `error`. Čerstvý zápis do transcript souboru může ale znovu nastavit `working`, pokud hook mezitím přešel jen do neterminálního stavu jako `waitingForUser` a generace ve skutečnosti pokračuje. Aktivní podagent drží rodiče ve stavu práce i po `afterAgentResponse`. Fallback kontroluje změny přibližně po 300 ms, vlastní soubor považuje za aktivní 3 minuty a podagenta nechá u stolu až 8 minut, pokud se mezitím hýbe rodičovský transcript.
+Jakmile bylo stejné ID pozorováno přes skutečný hook, starší fallback metadata nesmí zrušit terminální stav `completed`, `offline` ani `error`. Novější zápis do transcript souboru může znovu nastavit `working` — po neterminálním hook stavu jako `waitingForUser` i po `stop`, pokud soubor je novější než ukončovací událost. Aktivní podagent drží rodiče ve stavu práce i po `afterAgentResponse`. Fallback kontroluje změny přibližně po 300 ms, vlastní soubor považuje za aktivní 3 minuty a podagenta nechá u stolu až 8 minut, pokud se mezitím hýbe rodičovský transcript.
 
 ## Pracovní tok a sociální předávání
 
@@ -96,7 +96,7 @@ Jednotlivé kroky se zobrazí pouze tehdy, když je Cursor nebo harness doloží
 
 | Stav | Význam v datech | Výchozí místo a chování |
 |---|---|---|
-| `working` | Probíhá generace, nástroj nebo aktivní subagent | Pracovní stůl, sezení a psaní na klávesnici |
+| `working` | Probíhá generace, nástroj nebo aktivní subagent | Volný pracovní stůl, případně stoje u dalšího PC; počet postav není omezený počtem židlí |
 | `waitingForUser` | Agent čeká na rozhodnutí nebo vstup uživatele | Skutečný chat/subagent stojí a periodicky žádá o pozornost; manažer agreguje stav v zasedačce |
 | `error` | Nástroj nebo agent skončil chybou | Debug laboratoř a znepokojená animace |
 | `completed` | Generace nebo delegovaná práce skončila | Krátká oslava, lounge a následný lifecycle podle typu postavy |
@@ -104,7 +104,7 @@ Jednotlivé kroky se zobrazí pouze tehdy, když je Cursor nebo harness doloží
 | `offline` | Relace byla ukončena nebo zmizela | Lounge nebo příprava na odchod |
 | `unknown` | Identita je známá, ale zdroj nedal přesnější stav | Klidové chování bez tvrzení, že agent pracuje |
 
-Změna stavu přidělí postavě vhodný bod zájmu. Pracovní židle, místa na poradě, lounge, kuchyňka a debug zóna se rezervují, takže dvě postavy nedostanou stejné místo. Pokud preferované místo není volné, použije se bezpečný fallback.
+Změna stavu přidělí postavě vhodný bod zájmu. Pracovní židle, místa na poradě, lounge, kuchyňka a debug zóna se rezervují, takže dvě postavy nedostanou stejné místo. Pokud jsou všechny židle obsazené, další pracující agent dostane volné stojící pracovní místo mimo dveřní uličku. Počet agentů v kanceláři se nestříhá.
 
 ### Čekání na odpověď a Plan mode
 
@@ -159,7 +159,7 @@ Postava ve volném režimu nezůstává trvale stát u východu. Po příchodu n
 
 Ambientní sociální koordinátor přibližně každých 12 až 32 sekund zvažuje novou scénu, pouze pokud nečeká důležitější skutečná interakce. Vybere dvě až čtyři dostupné postavy a jednu z prostorových formací: sousední místa na gauči, židle kolem poradního stolu nebo otevřený stojící hlouček. Všechna místa se rezervují atomicky; pokud je některé obsazené neúčastníkem, koordinátor zvolí jinou scénu nebo ji odloží. Rozhovor začne až po příchodu a usazení posledního člena. Jeden člen mluví, ostatní naslouchají a role se nepravidelně střídají. Mrkání, dýchání a drobné pohyby běží nezávisle na lifecycle.
 
-Volnočasové časování není společný pevný interval. Doba pobytu se začne počítat až po skutečném příchodu na místo: gauč přibližně 18–58 sekund (u hotového agenta až 72), porada 12–46 sekund a ostatní odpočinek 10–48 sekund podle typu POI. Káva je na volném čase nezávislá: postava si ji může odnést k pracovnímu stolu, na židli, do lounge nebo do rozhovoru a popíjet při práci, sezení i hovoru. Příprava u rezervovaného kávovaru trvá přibližně 2–5 sekund. Rychlý piják dopije za 4–10 sekund, běžný za 16–48 sekund a pomalý může usrkávat 55–150 sekund; tempo je pro postavu stabilní, konkrétní délka se mění s každým šálkem. Mytí u samostatně rezervovaného dřezu trvá 4–7 sekund. Hrnek je viditelný pouze od dokončení přípravy do konce mytí; při chůzi zůstává vzpřímený před tělem, při pití se opakovaně zvedá k ústům a u dřezu běží proud vody. Běžný stav `idle` používá neutrální emoci, nikoli trvalou ikonu kávy. Pokud probíhá rozhovor nebo je dřez obsazený, postava s prázdným hrnkem dokončí interakci na místě a rezervaci dřezu zkusí později. Protažení trvá 3–7 sekund, mávnutí 2–5 sekund a rozhlížení 2–6 sekund. Skupinový rozhovor trvá podle prostředí přibližně 8–46 sekund a mluvčí se střídají po 1–5 sekundách. Po poslední replice postavy ještě různě dlouho zůstávají sedět nebo stát, takže se nerozejdou v jediném synchronním okamžiku.
+Volnočasové časování není společný pevný interval. Doba pobytu se začne počítat až po skutečném příchodu na místo: gauč přibližně 18–58 sekund (u hotového agenta až 72), porada 12–46 sekund a ostatní odpočinek 10–48 sekund podle typu POI. Kávu může nepracující postava odnést na židli, k volnému stolu, do lounge nebo do rozhovoru a popíjet při sezení i hovoru. Stav `working` má vždy vyšší prioritu: pracující agent kávový cyklus nezahajuje a rozpracovaný cyklus při přechodu do práce okamžitě ukončí, uvolní kávovar a zamíří ke svému počítači. Příprava u rezervovaného kávovaru trvá přibližně 2–5 sekund. Rychlý piják dopije za 4–10 sekund, běžný za 16–48 sekund a pomalý může usrkávat 55–150 sekund; tempo je pro postavu stabilní, konkrétní délka se mění s každým šálkem. Mytí u samostatně rezervovaného dřezu trvá 4–7 sekund. Hrnek je viditelný pouze od dokončení přípravy do konce mytí; při chůzi zůstává vzpřímený před tělem, při pití se opakovaně zvedá k ústům a u dřezu běží proud vody. Běžný stav `idle` používá neutrální emoci, nikoli trvalou ikonu kávy. Pokud probíhá rozhovor nebo je dřez obsazený, postava s prázdným hrnkem dokončí interakci na místě a rezervaci dřezu zkusí později. Protažení trvá 3–7 sekund, mávnutí 2–5 sekund a rozhlížení 2–6 sekund. Skupinový rozhovor trvá podle prostředí přibližně 8–46 sekund a mluvčí se střídají po 1–5 sekundách. Po poslední replice postavy ještě různě dlouho zůstávají sedět nebo stát, takže se nerozejdou v jediném synchronním okamžiku.
 
 Skutečný `beforeSubmitPrompt`, odpověď, delegace nebo handoff má před ambientní skupinou vždy prioritu. Pokud se týká některého účastníka, skupina se bezpečně rozpustí, uvolní sociální režim a reálná událost pokračuje přes běžnou frontu. Odchodový deadline dokončeného podagenta je po dobu skupiny pozastaven a po jejím skončení obnoven.
 
@@ -186,22 +186,25 @@ Autonomní rozhodnutí se znovu plánuje přibližně po 20 až 28 sekundách. P
 
 ## Navigace a vyhýbání
 
-Pevné překážky jsou součástí kolizní mapy. Visibility-graph A* vede trasu kolem stěn, stolů, gauče a dalšího nábytku. Dveře mají vlastní FIFO správu průchodu: první postava si portál krátce rezervuje, ostatní čekají před prahem.
+Pevné překážky jsou součástí kolizní mapy. Visibility-graph A* vede trasu kolem stěn, stolů, gauče a dalšího nábytku. Pracovní stoly ve studiu a debug laboratoři sedí proti sobě přes středovou uličku, aby dveřní koridor zůstal volný; sedící nebo stojící pracovník u PC proto není v prahu dveří. Dveře mají vlastní FIFO správu průchodu: první postava, která dveřmi skutečně prochází, si portál krátce rezervuje, ostatní čekají před prahem. Postava, která u dveří nebo u počítače jen pracuje, rezervaci nedrží a ostatní ji obcházejí.
 
-Mimo dveře se předpovídají konflikty pohybujících se postav. Stabilní priorita zabrání tomu, aby obě střídavě uskakovaly; jedna krátce počká a případně dostane boční waypoint. Watchdog sleduje skutečný postup i během dávání přednosti. Pokud lokální úkrok selže, přepočítá celou trasu se všemi ostatními postavami jako dočasnými kruhovými překážkami, takže může obejít stolek nebo použít delší chodbu. Když v hustém shluku nelze bezpečnou objížďku naplánovat, pozastavenou postavu přibližně na 1,1 sekundy uvolní a nechá dynamickou separaci vytvořit prostor; po tomto omezeném intervalu se znovu použije běžná stabilní priorita. Nábytková sedadla oddělují bezpečný bod chůze od vizuální kotvy na sedáku, takže postava neprochází colliderem gauče.
+Mimo dveře se předpovídají konflikty pohybujících se postav. Stabilní priorita zabrání tomu, aby obě střídavě uskakovaly; jedna krátce počká a případně dostane boční waypoint. Kolem sedící nebo stojící překážky se trasa plánuje hned, bez čekání, až se pracovník pohne. Watchdog sleduje skutečný postup i během dávání přednosti. Pokud lokální úkrok selže, přepočítá celou trasu se všemi ostatními postavami jako dočasnými kruhovými překážkami, takže může obejít stolek nebo použít delší chodbu. Když v hustém shluku nelze bezpečnou objížďku naplánovat, pozastavenou postavu přibližně na 1,1 sekundy uvolní a nechá dynamickou separaci vytvořit prostor; po tomto omezeném intervalu se znovu použije běžná stabilní priorita. Nábytková sedadla oddělují bezpečný bod chůze od vizuální kotvy na sedáku, takže postava neprochází colliderem gauče.
 
-## Jména, modely a tokeny
+## Jména, činnost, modely, tokeny a kontext
 
-Kompaktní štítek ukazuje pouze jméno. Hover nad postavou nebo jménem otevře detail a po odjetí jej ještě krátce podrží; výběr postavy jej nechá otevřený trvale. Detail může obsahovat:
+Kompaktní štítek ukazuje pouze jméno. Hover nad postavou nebo jménem otevře detail a po odjetí jej ještě krátce podrží; výběr postavy jej nechá otevřený trvale. Stejná metadata čte i karta v týmovém panelu. Co se na štítku, kartě a v inspectoru zobrazí, řídí in-office **Nastavení kanceláře** (ozubené kolečko v HUD): přepínače modelu, tokenů a činnosti. Výchozí je zapnuto. Přepínač tokenů schová i řádek kontextového okna. `hostPath` v tomto panelu není.
+
+Detail může obsahovat:
 
 - roli a stav,
-- aktuální nástroj nebo krátký privacy-safe popis delegované práce,
+- aktuální činnost: nástroj, analýza, basename souboru, úkol podagenta nebo komprese kontextu — nikoli text promptu,
 - název chatu,
 - workspace a Cursor okno,
-- model oznámený runtime,
-- přesně zaznamenané tokeny poslední generace.
+- model ze společného hook payloadu (`model` / `model_id`) a v detailu volitelné knoby `thinking`, `effort`, `context`,
+- přesně zaznamenané **generační** tokeny poslední generace,
+- zaplnění **kontextového okna** z `preCompact`, pokud hook čísla poslal.
 
-Hodnota `model neuveden` znamená, že ji aktuální Cursor událost neposkytla. Stejně tak chybějící tokeny nejsou nula. Cursor Office je neodhaduje a nevypočítává cenu. Lokální ledger deduplikuje jednu generaci, zachovává maxima průběžných čítačů a nabízí součty celkem, podle úplné cesty workspace, modelu, kombinace workspace/model a dne.
+Hodnota „model čeká na hook“ znamená, že ji aktuální Cursor událost neposkytla. Chybějící tokeny nejsou nula: veřejný Hooks kontrakt účtované tokeny negarantuje a ledger je neodhaduje ani nepočítá cenu. Kontext z `preCompact` není účtovaná generace a do ledgeru se nezapisuje. Lokální ledger deduplikuje jednu generaci, zachovává maxima průběžných čítačů a nabízí součty celkem, podle úplné cesty workspace, modelu, kombinace workspace/model a dne.
 
 ## Filtry
 
@@ -213,10 +216,10 @@ Filtr mění pouze viditelnost. Skrytá postava dál drží svou pozici, stav, r
 
 ## Co zatím není garantováno
 
-- Cursor nemá jedno veřejné API poskytující současně všechna okna, chaty, subagenty, modely a přesné tokeny.
-- Přesnost závisí na hook událostech konkrétní verze Cursoru a použitého harnessu.
+- Cursor nemá jedno veřejné API poskytující současně všechna okna, chaty, subagenty, modely, přesné účtované tokeny a zaplnění kontextu.
+- Přesnost závisí na hook událostech konkrétní verze Cursoru a použitého harnessu. Veřejný kontrakt účtované tokeny negarantuje; `preCompact` je kontext, ne billing.
 - Pouhé přepnutí viditelné záložky chatu nemusí být lifecycle událost.
-- Chybějící model nebo tokeny nelze bezpečně doplnit z dojmu UI.
+- Chybějící model, tokeny nebo kontext nelze bezpečně doplnit z dojmu UI. Ledger nic neodhaduje.
 - Sociální řetězec zobrazuje jen doložené kroky; chybějící hook znamená chybějící animaci předání.
 - Cursor Office je zatím observační. Kliknutí na postavu ani autonomie neposílají příkazy agentům.
 

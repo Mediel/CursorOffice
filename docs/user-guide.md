@@ -89,7 +89,7 @@ Nad hlavou zůstává běžně jen kompaktní jméno. Úplný panel se otevře:
 
 Po odjetí myši detail krátce zůstane otevřený, aby nebliknul při přejezdu mezi tělem a štítkem. Vybraná postava jej drží otevřený trvale. Kliknutí mimo postavu výběr neruší, pokud kliknutí zároveň posílá majitele na podlahu; `Esc` je jistý způsob návratu.
 
-Detail podle dostupných dat ukazuje stav, roli, workspace, chat, aktuální nástroj nebo činnost, model a tokeny. `Model neuveden` nebo `tokeny nezaznamenány` je vědomé přiznání chybějícího runtime údaje, ne chyba výpočtu.
+Detail podle dostupných dat ukazuje stav, roli, workspace, chat, aktuální činnost, model, doložené tokeny poslední generace a volitelné zaplnění kontextového okna. Stejné údaje, pokud je v Nastavení zapnete, nese i karta v týmovém panelu a 3D štítek. `Model čeká na hook`, `tokeny Cursor neposlal` nebo chybějící řádek kontextu je vědomé přiznání chybějícího runtime údaje, ne chyba výpočtu.
 
 ### Jak číst barvy
 
@@ -125,15 +125,22 @@ Skrytí týmu filtrem jej nezastaví. Postavy dál pracují, přesouvají se a m
 | Více postav na gauči, u poradního stolu nebo v kruhu | Ambientní idle konverzace; nejde o novou práci v Cursoru |
 | Cesta ke vstupu | Ukončený lifecycle a odchod |
 
-Místnost není vždy přímým důkazem aktuálního stavu. Postava může být na cestě, čekat ve dveřích, vracet se z rozhovoru nebo dokončovat předchozí animaci.
+Místnost není vždy přímým důkazem aktuálního stavu. Postava může být na cestě, čekat ve dveřích na protijdoucího, vracet se z rozhovoru nebo dokončovat předchozí animaci. Kolem někoho, kdo sedí nebo stojí u počítače, se dá projít; dveřní uličky zůstávají volné. Když je víc pracujících agentů než židlí, další dostanou stojící pracovní místo.
 
-Délky akcí se záměrně liší. Čas posezení začíná až po příchodu na gauč nebo židli. Káva není vázaná na kuchyňské místo ani na volný čas: postava ji může popíjet při práci u stolu, vsedě, v lounge nebo během rozhovoru. Některá dopije během několika sekund, běžná ji pije desítky sekund a pomalý piják může usrkávat přes dvě minuty. Protažení, mávání, postávání i nezávazné rozhovory mají vlastní rozsahy a při každém dalším cyklu dostanou jinou stabilní hodnotu. Idle konverzace může mít dva až čtyři členy. Skupina si předem rezervuje sousední místa, počká na posledního příchozího, střídá jednoho mluvčího a po skončení se rozpadá postupně. Reálný prompt nebo handoff má vždy přednost.
+Délky akcí se záměrně liší. Čas posezení začíná až po příchodu na gauč nebo židli. Nepracující postava může kávu popíjet vsedě, u volného stolu, v lounge nebo během rozhovoru. Některá dopije během několika sekund, běžná ji pije desítky sekund a pomalý piják může usrkávat přes dvě minuty. Jakmile agent začne skutečně pracovat, kávový cyklus se ukončí a postava vždy zamíří ke svému počítači; pracující agent si novou kávu nechodí připravovat. Protažení, mávání, postávání i nezávazné rozhovory mají vlastní rozsahy a při každém dalším cyklu dostanou jinou stabilní hodnotu. Idle konverzace může mít dva až čtyři členy. Skupina si předem rezervuje sousední místa, počká na posledního příchozího, střídá jednoho mluvčího a po skončení se rozpadá postupně. Reálný prompt nebo handoff má vždy přednost.
 
-## Modely a tokeny
+## Jak číst model, činnost, tokeny a kontext
 
-Model patří skutečnému chatu nebo subagentovi. Manažer může ukázat souhrn modelů týmu, ale nemá vlastní generaci. Cursor Hooks poskytují model častěji než přesné tokeny.
+Všechny čtyři údaje jsou observační. Cursor Office je ukáže jen tehdy, když je hook nebo jiný přesný runtime zdroj opravdu dodá.
 
-Tokenový údaj s hvězdičkou lze otevřít. Ledger ukazuje pouze přesně oznámené hodnoty:
+| Údaj | Kde ho číst | Co znamená | Když chybí |
+|---|---|---|---|
+| **Model** | karta týmu, inspector, 3D štítek | `model` / `model_id` ze společného hook payloadu; u podagenta i `subagent_model`. V detailu může doplnit knoby `thinking`, `effort`, `context`. | „model čeká na hook“ — Cursor Office model z UI nedoplňuje |
+| **Činnost** | karta týmu, inspector, 3D štítek | Privacy-safe popisek: nástroj, analýza, basename souboru, úkol podagenta nebo komprese kontextu | „Bez aktuálního úkolu“ — text promptu se nikdy neukazuje |
+| **Tokeny** | karta, inspector, 3D štítek a tlačítko `tokenů*` | Doložená generační spotřeba poslední generace (`input` / `output` / cache). Manažer ukazuje workspace agregaci, ne vlastní generaci. | „tokeny Cursor neposlal“ nebo „po dokončení generace“ — veřejný Hooks kontrakt účtované tokeny negarantuje |
+| **Kontext** | karta a inspector, pokud přišel `preCompact` | Zaplnění kontextového okna (`%` a/nebo `tokeny/okno`). Není účtovaná generace a není v ledgeru. | Řádek se nezobrazí — hook `preCompact` ještě nepřišel nebo nenesl čísla |
+
+Tokenový údaj s hvězdičkou v záhlaví otevře lokální ledger. Ledger ukazuje pouze přesně oznámené generační hodnoty:
 
 - celkem,
 - podle úplné cesty workspace,
@@ -141,7 +148,7 @@ Tokenový údaj s hvězdičkou lze otevřít. Ledger ukazuje pouze přesně ozn�
 - podle kombinace workspace a modelu,
 - podle lokálního dne.
 
-Jedna generace se započítá pouze jednou. Pokud runtime posílá průběžné čítače, uloží se jejich maxima. Chybějící spotřeba se nezapisuje jako nula a ceny se neodhadují.
+Jedna generace se započítá pouze jednou. Pokud runtime posílá průběžné čítače, uloží se jejich maxima. Ledger nic neodhaduje: chybějící spotřebu nezapisuje jako nulu a ceny nepočítá. Zaplnění kontextu do ledgeru nepatří.
 
 ## Co se stane po dokončení
 
@@ -152,16 +159,37 @@ Jedna generace se započítá pouze jednou. Pokud runtime posílá průběžné 
 
 Přesná současná časování jsou v části [Neaktivita, dokončení a odchod](behavior-model.md#neaktivita-dokončení-a-odchod).
 
-## Nastavení
+## Nastavení v kanceláři
+
+Konfigurovatelné věci se nastavují přímo v otevřené kanceláři. V záhlaví HUD klikněte na ozubené kolečko (`Nastavení kanceláře`). Panel zapisuje stejné klíče jako Cursor Settings a otevřená kancelář se aktualizuje ihned.
+
+| Sekce v panelu | Co lze nastavit |
+|---|---|
+| Jazyk | `auto`, čeština nebo English |
+| Název a logo | název v záhlaví a na kartě editoru; výběr nebo odstranění PNG/JPEG/WebP/GIF loga do 2 MB |
+| Majitel | přezdívka; prázdné pole použije lokální uživatelské jméno |
+| Vzhled majitele | účes, barva vlasů, pokožka, vousy a brýle; výchozí účes je upravená patka |
+| Barvy košil | majitel, manažer, hlavní chat/senior a subagent |
+| Zobrazení v kanceláři | přepínače **Zobrazit model**, **Zobrazit tokeny** a **Zobrazit činnost** (výchozí zapnuto) |
+
+Přepínače zobrazení schovají model, tokeny i kontext, nebo činnost, v týmovém seznamu, inspectoru i 3D štítku. Neschovají data: hook a ledger dál ukládají stejná metadata. `hostPath` v tomto panelu není; patří jen do Cursor Settings pro vývoj a diagnostiku.
+
+Stejné hodnoty lze změnit i v Cursor Settings:
 
 | Nastavení | Význam |
 |---|---|
-| `cursorOffice.ownerName` | Jméno majitele; prázdná hodnota použije lokální uživatelské jméno |
+| `cursorOffice.ownerName` | Přezdívka majitele; prázdná hodnota použije lokální uživatelské jméno |
+| `cursorOffice.ownerAppearance.*` | Účes, barva vlasů, pokožka, vousy a brýle majitele |
 | `cursorOffice.officeName` | Název v záhlaví kanceláře a na kartě editoru |
-| `cursorOffice.officeLogoPath` | Absolutní cesta k PNG, JPEG, WebP nebo GIF logu do 2 MB; prázdná hodnota zobrazí iniciály názvu |
+| `cursorOffice.officeLogoPath` | Absolutní cesta k logu; prázdná hodnota zobrazí iniciály názvu |
+| `cursorOffice.language` | `auto`, `cs` nebo `en`; automatika použije češtinu pouze na českých Windows, jinak angličtinu |
+| `cursorOffice.shirtColors.*` | Barvy košil majitele, manažera, hlavního chatu/seniora a subagenta |
+| `cursorOffice.hud.showModel` | Model v seznamu, inspectoru a 3D štítku |
+| `cursorOffice.hud.showTokens` | Doložené tokeny a zaplnění kontextového okna |
+| `cursorOffice.hud.showActivity` | Aktuální činnost (nástroj, analýza, soubor, úkol podagenta) |
 | `cursorOffice.hostPath` | Volitelná absolutní cesta k host `.dll`, `.csproj` nebo spustitelnému souboru |
 
-Logo lze pohodlně vybrat také příkazem `Cursor Office: Select Office Logo`. Název i logo se po změně nastavení aktualizují v otevřené kanceláři. `hostPath` je určen hlavně pro vývoj a diagnostiku. Instalovaná VSIX obsahuje vlastní publikovaný .NET 10 host a standardně žádnou ruční cestu nepotřebuje.
+Logo lze vybrat i příkazem `Cursor Office: Select Office Logo`. Instalovaná VSIX obsahuje vlastní publikovaný .NET 10 host a standardně žádnou ruční cestu nepotřebuje.
 
 ## Soukromí a lokální soubory
 

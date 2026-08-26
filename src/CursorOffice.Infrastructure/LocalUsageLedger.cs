@@ -6,7 +6,8 @@ namespace CursorOffice.Infrastructure.Usage;
 
 /// <summary>
 /// Privacy-preserving local ledger. It stores only correlation IDs, workspace,
-/// model and runtime-reported token counters; never prompts or model output.
+/// model and runtime-reported generation token counters; never prompts, model
+/// output, or context-window fill.
 /// </summary>
 public sealed class LocalUsageLedger
 {

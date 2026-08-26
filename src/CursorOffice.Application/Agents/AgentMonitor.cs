@@ -22,14 +22,17 @@ public sealed class AgentMonitor(AgentRegistry registry, IAgentEventSource event
             registry.TryGet(activity.AgentId, out var previous);
             if (activity.IsFallback && previous is { IsFallback: false })
             {
-                // Hooks own terminal lifecycle. Fallback must not undo completed,
-                // offline or error. A fresh transcript write is still allowed to
-                // resume working after a non-terminal hook such as afterAgentResponse
-                // when preToolUse hooks did not arrive for the same generation.
-                if (activity.Status != AgentStatus.Working
-                    || previous.Status is AgentStatus.Completed
+                // Hooks own terminal lifecycle. A stale transcript must not undo
+                // completed, offline or error. A newer transcript write is evidence
+                // of a later generation and may resume working after stop.
+                if (activity.Status != AgentStatus.Working)
+                {
+                    continue;
+                }
+                if (previous.Status is AgentStatus.Completed
                         or AgentStatus.Offline
-                        or AgentStatus.Error)
+                        or AgentStatus.Error
+                    && activity.OccurredAt <= previous.LastActivityAt)
                 {
                     continue;
                 }
@@ -52,7 +55,9 @@ public sealed class AgentMonitor(AgentRegistry registry, IAgentEventSource event
             var model = string.IsNullOrWhiteSpace(activity.Model)
                 ? previous?.Model
                 : activity.Model;
+            var modelParams = activity.ModelParams ?? previous?.ModelParams;
             var usage = activity.Usage ?? (sameGeneration ? previous?.Usage : null);
+            var contextUsage = activity.ContextUsage ?? (sameGeneration ? previous?.ContextUsage : null);
             var conversationTitle = string.IsNullOrWhiteSpace(activity.ConversationTitle)
                 ? previous?.ConversationTitle
                 : activity.ConversationTitle;
@@ -84,6 +89,8 @@ public sealed class AgentMonitor(AgentRegistry registry, IAgentEventSource event
                 activity.IsParallelWorker,
                 activity.GenerationId,
                 usage,
+                modelParams,
+                contextUsage,
                 interactionKind,
                 activity.WorkspacePath,
                 activity.IsFallback,
@@ -140,6 +147,8 @@ public sealed class AgentMonitor(AgentRegistry registry, IAgentEventSource event
             existing.IsParallelWorker,
             existing.GenerationId,
             existing.Usage,
+            existing.ModelParams,
+            existing.ContextUsage,
             existing.InteractionKind,
             existing.WorkspacePath,
             existing.IsFallback,

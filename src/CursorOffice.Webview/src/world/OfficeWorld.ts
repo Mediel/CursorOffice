@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type { AgentSnapshot, OfficeBootstrap, OfficeOwner } from '../contracts';
 import { statusColors, visualRoleFor } from '../contracts';
+import { t } from '../i18n';
+import type { HudDisplayPreferences } from '../ui/OfficeHud';
 import {
   CharacterController,
   createTextSprite,
@@ -23,7 +25,8 @@ import {
   spawnPoint,
   standingConversationGroups,
   targetForAgent,
-  worldBounds
+  worldBounds,
+  type DeskFixture
 } from './layout';
 import { OfficeNavigation } from './OfficeNavigation';
 import { DoorTrafficManager, type DoorTraveler } from './DoorTrafficManager';
@@ -283,6 +286,7 @@ export class OfficeWorld {
   private ownerDescriptorKey: string | undefined;
   private selectedId: string | undefined;
   private selectedWindowId = 'all';
+  private display: HudDisplayPreferences = { showModel: true, showTokens: true, showActivity: true };
   private hoveredId: string | undefined;
   private pointerDown: { x: number; y: number; button: number } | undefined;
   private previousAnimationTime = 0;
@@ -352,6 +356,13 @@ export class OfficeWorld {
   }
 
   public applyBootstrap(bootstrap: OfficeBootstrap): void {
+    if (bootstrap.settings) {
+      this.display = {
+        showModel: bootstrap.settings.showModel !== false,
+        showTokens: bootstrap.settings.showTokens !== false,
+        showActivity: bootstrap.settings.showActivity !== false
+      };
+    }
     this.updateOwner(bootstrap.owner);
     this.updateAgents(bootstrap.agents);
   }
@@ -635,7 +646,7 @@ export class OfficeWorld {
         const safePoint = this.navigation.constrainDestination(floorPoint);
         const direction = safePoint.clone().sub(this.owner.group.position);
         this.owner.setRestPose('stand', Math.atan2(direction.x, direction.z));
-        this.owner.setPath(this.navigation.plan(this.owner.group.position, safePoint));
+        this.owner.setPath(this.planRoute(this.owner.group.position, safePoint, 'owner'));
       }
     }
   };
@@ -716,7 +727,7 @@ export class OfficeWorld {
   };
 
   private updateOwner(owner: OfficeOwner): void {
-    const descriptorKey = `${owner.displayName}\u0000${owner.role}\u0000${owner.accent}`;
+    const descriptorKey = `${owner.displayName}\u0000${owner.role}\u0000${owner.accent}\u0000${JSON.stringify(owner.appearance)}`;
     if (this.owner && this.ownerDescriptorKey === descriptorKey) {
       return;
     }
@@ -736,7 +747,8 @@ export class OfficeWorld {
       color,
       isOwner: true,
       visualRole: 'owner',
-      appearanceKey: `owner:${owner.displayName}`
+      appearanceKey: `owner:${owner.displayName}`,
+      appearance: owner.appearance
     });
     this.ownerDescriptorKey = descriptorKey;
     const persistedPosition = this.persistedState.ownerPosition
@@ -746,7 +758,7 @@ export class OfficeWorld {
     this.owner.setPosition(this.navigation.constrainDestination(position));
     if (!previousPosition && !persistedPosition) {
       this.owner.setRestPose('workSeat', Math.PI);
-      this.owner.setPath(this.navigation.plan(ownerStart, ownerDesk));
+      this.owner.setPath(this.planRoute(ownerStart, ownerDesk, 'owner'));
     } else {
       this.owner.setRestPose('stand', Math.PI);
     }
@@ -875,9 +887,11 @@ export class OfficeWorld {
       }
 
       const previousRetiring = behavior.retiring;
+      const coffeeInProgress = Boolean(behavior.coffeeBreak);
+      const workingNow = agent.status === 'working' && !retiring;
       controller.setState(agent.status, statusColors[agent.status]);
       controller.setActivity(activityForStatus(agent.status));
-      controller.setMetadata(agent);
+      controller.setMetadata(agent, this.display);
       const statusChanged = previousStatus !== undefined && previousStatus !== agent.status;
       const retirementChanged = previousRetiring !== retiring;
       const nextTeamKey = teamKeyFor(agent);
@@ -889,11 +903,20 @@ export class OfficeWorld {
         || statusChanged
         || retirementChanged
         || teamChanged
-        || behavior.phase !== 'present';
+        || behavior.phase !== 'present'
+        || (workingNow && coffeeInProgress);
       behavior.status = agent.status;
       behavior.kind = kind;
       behavior.retiring = retiring;
       behavior.teamKey = nextTeamKey;
+      if (workingNow) {
+        if (behavior.coffeeBreak) {
+          this.cancelCoffeeBreak(agent.id, controller, behavior, now);
+        }
+        if (statusChanged || coffeeInProgress) {
+          this.finishAmbientSocialGroupsFor([agent.id], now);
+        }
+      }
       behavior.lastActivityAt = Math.max(behavior.lastActivityAt, activityAt);
       if (statusChanged) {
         behavior.statusChangedAt = now;
@@ -1025,12 +1048,11 @@ export class OfficeWorld {
     behavior: AgentBehavior
   ): void {
     if (behavior.coffeeBreak) {
-      behavior.nextCoffeeAt = this.sceneSeconds
-        + variedSeconds(35, 120, `${id}:coffee:retargeted:${behavior.cycle}`);
+      this.cancelCoffeeBreak(id, controller, behavior, this.sceneSeconds);
+    } else {
+      controller.setCoffeeMode('none');
+      this.poiManager.release(id);
     }
-    behavior.coffeeBreak = undefined;
-    controller.setCoffeeMode('none');
-    this.poiManager.release(id);
     behavior.pendingDwellPoiId = undefined;
     const attentionRequested = requestsAttention(id, behavior.status);
     let kinds: readonly OfficePoiKind[];
@@ -1044,7 +1066,10 @@ export class OfficeWorld {
       case 'unknown': kinds = behavior.index % 4 === 0 ? ['lounge', 'idle'] : ['idle', 'lounge']; break;
     }
 
-    const claimed = this.poiManager.claim(id, kinds, behavior.index, behavior.teamKey);
+    const claimed = this.poiManager.claim(id, kinds, behavior.index, behavior.teamKey)
+      ?? (behavior.status === 'working' && !behavior.retiring
+        ? this.poiManager.claim(id, ['hotdesk'], behavior.index, behavior.teamKey)
+        : undefined);
     const fallback = targetForAgent(attentionRequested ? 'idle' : behavior.status, behavior.index);
     const destination: ClaimedDestination = claimed ?? {
       poiId: `fallback-${id}`,
@@ -1060,7 +1085,7 @@ export class OfficeWorld {
       destination.facing,
       celebrateStanding || attentionRequested ? undefined : destination.visualOffset
     );
-    controller.setPath(this.navigation.plan(controller.group.position, destination.position));
+    controller.setPath(this.planRoute(controller.group.position, destination.position, id));
     if (isLeisureBehavior(behavior) && !attentionRequested) {
       behavior.pendingDwellPoiId = destination.poiId;
       behavior.nextMoveAt = Number.POSITIVE_INFINITY;
@@ -1272,7 +1297,7 @@ export class OfficeWorld {
     this.ownerAutonomyAction = workIsActive ? 'desk:monitoring' : 'desk:idle';
     this.owner.setActivity(workIsActive ? 'work' : 'idle');
     this.owner.setRestPose('workSeat', Math.PI);
-    this.owner.setPath(this.navigation.plan(this.owner.group.position, ownerDesk));
+    this.owner.setPath(this.planRoute(this.owner.group.position, ownerDesk, 'owner'));
   }
 
   private updateCameraMovement(deltaSeconds: number): void {
@@ -1334,8 +1359,9 @@ export class OfficeWorld {
         if (left.isSeated && right.isSeated) {
           continue;
         }
-        if (this.doorTraffic.isInsideDoorCore(left.group.position)
-          || this.doorTraffic.isInsideDoorCore(right.group.position)) {
+        if (left.isMoving && right.isMoving && !left.isSeated && !right.isSeated
+          && this.doorTraffic.isInsideDoorCore(left.group.position)
+          && this.doorTraffic.isInsideDoorCore(right.group.position)) {
           continue;
         }
         const offset = left.getPosition().sub(right.getPosition()).setY(0);
@@ -1370,14 +1396,16 @@ export class OfficeWorld {
       id,
       position: controller.getPosition(),
       remainingPath: controller.getRemainingPath(),
-      moving: controller.isMoving
+      moving: controller.isMoving,
+      seated: controller.isSeated
       }));
     if (this.owner) {
       travelers.push({
         id: 'owner',
         position: this.owner.getPosition(),
         remainingPath: this.owner.getRemainingPath(),
-        moving: this.owner.isMoving
+        moving: this.owner.isMoving,
+        seated: this.owner.isSeated
       });
     }
 
@@ -1403,8 +1431,7 @@ export class OfficeWorld {
         const left = travelers[leftIndex];
         const right = travelers[rightIndex];
         if (left.position.distanceTo(right.position) > 1.04
-          || this.doorTraffic.isInsideDoorCore(left.position)
-          || this.doorTraffic.isInsideDoorCore(right.position)) {
+          || this.doorTraffic.areCrossingTogether(left, right)) {
           continue;
         }
 
@@ -1420,6 +1447,7 @@ export class OfficeWorld {
           continue;
         }
         const blocker = yielder.id === left.id ? right : left;
+        const parkedBlocker = blocker.seated || !blocker.moving;
         activeYielders.add(yielder.id);
 
         let conflict = this.crowdConflicts.get(yielder.id);
@@ -1440,11 +1468,17 @@ export class OfficeWorld {
           continue;
         }
 
-        const shouldDetour = !blocker.moving || seconds - conflict.since >= 0.62;
-        if (shouldDetour && seconds - conflict.lastDetourAt >= 1.1
+        const shouldDetour = parkedBlocker || seconds - conflict.since >= 0.62;
+        if (shouldDetour && seconds - conflict.lastDetourAt >= (parkedBlocker ? 0.45 : 1.1)
           && this.tryCrowdDetour(yielder, blocker, travelers)) {
           conflict.lastDetourAt = seconds;
           conflict.releaseUntil = seconds + 0.9;
+          continue;
+        }
+
+        // A seated or idle worker will not clear the lane. Keep walking and
+        // let separation plus the next detour open a path around them.
+        if (parkedBlocker) {
           continue;
         }
 
@@ -1528,9 +1562,11 @@ export class OfficeWorld {
     direction.normalize();
     const perpendicular = new THREE.Vector3(-direction.z, 0, direction.x);
     const preferredSide = stableSide(`${traveler.id}|${blocker.id}`);
+    const parkedBlocker = blocker.seated || !blocker.moving;
+    const sidesteps = parkedBlocker ? [0.62, 0.82, 1.04, 1.28] : [0.74, 0.9, 1.08];
 
     for (const side of [preferredSide, -preferredSide]) {
-      for (const lateral of [0.74, 0.9, 1.08]) {
+      for (const lateral of sidesteps) {
         const before = blocker.position.clone()
           .addScaledVector(direction, -0.5)
           .addScaledVector(perpendicular, side * lateral);
@@ -1539,8 +1575,8 @@ export class OfficeWorld {
           .addScaledVector(perpendicular, side * lateral);
         const beforeWalkable = this.navigation.isWalkable(before, 0.28);
         const afterWalkable = this.navigation.isWalkable(after, 0.28);
-        const beforeClear = this.hasCrowdClearance(before, traveler.id, allTravelers);
-        const afterClear = this.hasCrowdClearance(after, traveler.id, allTravelers);
+        const beforeClear = this.hasCrowdClearance(before, traveler.id, allTravelers, parkedBlocker);
+        const afterClear = this.hasCrowdClearance(after, traveler.id, allTravelers, parkedBlocker);
         if (!beforeWalkable || !afterWalkable || !beforeClear || !afterClear) {
           continue;
         }
@@ -1553,7 +1589,7 @@ export class OfficeWorld {
           traveler.position,
           [...first, ...second],
           blocker.position,
-          0.52
+          parkedBlocker ? 0.4 : 0.52
         );
         if (first.length === 0 || second.length === 0 || third.length === 0 || !clearsBlocker) {
           continue;
@@ -1573,7 +1609,8 @@ export class OfficeWorld {
       traveler.position,
       destination,
       dynamicObstacles,
-      0.28
+      0.28,
+      parkedBlocker ? 0.44 : 0.66
     );
     if (route.length === 0) {
       return false;
@@ -1585,9 +1622,36 @@ export class OfficeWorld {
   private hasCrowdClearance(
     position: THREE.Vector3,
     travelerId: string,
-    travelers: readonly DoorTraveler[]
+    travelers: readonly DoorTraveler[],
+    parkedBlocker = false
   ): boolean {
-    return travelers.every(other => other.id === travelerId || position.distanceTo(other.position) >= 0.6);
+    const clearance = parkedBlocker ? 0.48 : 0.6;
+    return travelers.every(other => other.id === travelerId || position.distanceTo(other.position) >= clearance);
+  }
+
+  private planRoute(from: THREE.Vector3, to: THREE.Vector3, ignoreId?: string): THREE.Vector3[] {
+    const avoid = this.occupantPositions(ignoreId);
+    if (avoid.length === 0) {
+      return this.navigation.plan(from, to);
+    }
+    const around = this.navigation.planAvoiding(from, to, avoid, 0.26, 0.44);
+    return around.length > 0 ? around : this.navigation.plan(from, to);
+  }
+
+  private occupantPositions(ignoreId?: string): THREE.Vector3[] {
+    const points: THREE.Vector3[] = [];
+    for (const [id, controller] of this.agents) {
+      if (id === ignoreId || !controller.group.visible) {
+        continue;
+      }
+      if (controller.isSeated || !controller.isMoving) {
+        points.push(controller.group.position.clone());
+      }
+    }
+    if (this.owner && ignoreId !== 'owner' && (this.owner.isSeated || !this.owner.isMoving)) {
+      points.push(this.owner.group.position.clone());
+    }
+    return points;
   }
 
   private recoverStalledTravelers(
@@ -1648,11 +1712,13 @@ export class OfficeWorld {
         const controller = this.characterFor(traveler.id);
         const destination = traveler.remainingPath.at(-1);
         if (controller && destination) {
+          const parkedNearby = Boolean(nearestBlocker?.seated || (nearestBlocker && !nearestBlocker.moving));
           const replanned = this.navigation.planAvoiding(
             traveler.position,
             destination,
             travelers.filter(other => other.id !== traveler.id).map(other => other.position),
-            0.28
+            0.28,
+            parkedNearby ? 0.44 : 0.66
           );
           if (replanned.length > 0) {
             controller.setPath(replanned, true);
@@ -1731,7 +1797,7 @@ export class OfficeWorld {
       behavior.pendingDwellPoiId = destination.poiId;
       behavior.nextMoveAt = Number.POSITIVE_INFINITY;
       controller.setRestPose(destination.restPose, destination.facing, destination.visualOffset);
-      controller.setPath(this.navigation.plan(controller.group.position, destination.position));
+      controller.setPath(this.planRoute(controller.group.position, destination.position, id));
     }
 
     this.queueAmbientInteraction(seconds);
@@ -1785,7 +1851,7 @@ export class OfficeWorld {
     controller.setCoffeeMode('none');
     controller.setActivity('idle');
     controller.setRestPose(machine.restPose, machine.facing, machine.visualOffset);
-    controller.setPath(this.navigation.plan(controller.group.position, machine.position));
+    controller.setPath(this.planRoute(controller.group.position, machine.position, id));
     return true;
   }
 
@@ -1801,6 +1867,7 @@ export class OfficeWorld {
     }
     if (!canHaveCoffee(id, behavior)) {
       this.cancelCoffeeBreak(id, controller, behavior, seconds);
+      this.assignStatusDestination(id, controller, behavior);
       return;
     }
 
@@ -1833,16 +1900,13 @@ export class OfficeWorld {
             behavior.teamKey
           );
           if (!breakDestination) {
-            const machine = this.poiManager.claimSpecific(id, coffeeMachinePoiId);
-            if (machine) {
-              behavior.destination = machine;
-            }
-            this.beginDrinkingCoffee(id, controller, behavior, seconds);
+            this.cancelCoffeeBreak(id, controller, behavior, seconds);
+            this.assignStatusDestination(id, controller, behavior);
             return;
           }
           behavior.destination = breakDestination;
           controller.setRestPose('stand', breakDestination.facing);
-          controller.setPath(this.navigation.plan(controller.group.position, breakDestination.position));
+          controller.setPath(this.planRoute(controller.group.position, breakDestination.position, id));
           coffeeBreak.phase = 'walkingToBreak';
           coffeeBreak.phaseStartedAt = seconds;
           coffeeBreak.phaseUntil = Number.POSITIVE_INFINITY;
@@ -1948,7 +2012,7 @@ export class OfficeWorld {
     }
     behavior.destination = sink;
     controller.setRestPose('stand', sink.facing);
-    controller.setPath(this.navigation.plan(controller.group.position, sink.position));
+    controller.setPath(this.planRoute(controller.group.position, sink.position, id));
     coffeeBreak.phase = 'returning';
     coffeeBreak.phaseStartedAt = seconds;
     coffeeBreak.phaseUntil = Number.POSITIVE_INFINITY;
@@ -2144,7 +2208,7 @@ export class OfficeWorld {
         member.target.facing,
         member.target.visualOffset
       );
-      controller.setPath(this.navigation.plan(controller.group.position, member.target.position));
+      controller.setPath(this.planRoute(controller.group.position, member.target.position, member.id));
     }
     return true;
   }
@@ -2285,7 +2349,7 @@ export class OfficeWorld {
 
           everyoneArrived = false;
           if (!controller.isMoving && distance > 0.18) {
-            controller.setPath(this.navigation.plan(controller.group.position, member.target.position));
+            controller.setPath(this.planRoute(controller.group.position, member.target.position, member.id));
           }
         }
 
@@ -2410,6 +2474,7 @@ export class OfficeWorld {
     const waiting = [...this.agentBehaviors.entries()]
       .filter(([id, behavior]) => behavior.phase === 'present'
         && behavior.status === 'waitingForUser'
+        && !requestsAttention(id, behavior.status)
         && !sociallyBusy.has(id))
       .map(([id]) => id)
       .sort();
@@ -2565,7 +2630,7 @@ export class OfficeWorld {
     const destination = behavior?.destination;
     if (destination && behavior?.phase === 'present') {
       visitor.setRestPose(destination.restPose, destination.facing, destination.visualOffset);
-      visitor.setPath(this.navigation.plan(visitor.group.position, destination.position));
+      visitor.setPath(this.planRoute(visitor.group.position, destination.position, encounter.visitorId));
     } else if (encounter.visitorRestState) {
       visitor.setRestPose(
         encounter.visitorRestState.pose,
@@ -2573,7 +2638,7 @@ export class OfficeWorld {
         encounter.visitorRestState.visualOffset
       );
       if (encounter.visitorId === 'owner' && encounter.visitorReturnPosition) {
-        visitor.setPath(this.navigation.plan(visitor.group.position, encounter.visitorReturnPosition));
+        visitor.setPath(this.planRoute(visitor.group.position, encounter.visitorReturnPosition, encounter.visitorId));
       }
     }
     encounter.phase = 'returning';
@@ -2758,7 +2823,7 @@ export class OfficeWorld {
     behavior.nextMoveAt = Number.POSITIVE_INFINITY;
     controller.setRestPose('stand', Math.atan2(direction.x, direction.z));
     controller.setActivity('idle');
-    controller.setPath(this.navigation.plan(controller.group.position, exit));
+    controller.setPath(this.planRoute(controller.group.position, exit, id));
   }
 
   private scheduleSubagentRetirement(id: string, seconds: number): void {
@@ -2851,13 +2916,18 @@ export class OfficeWorld {
     this.room.add(rug);
   }
 
-  private createDesk(x: number, z: number, width: number, accent: number): void {
+  private createDesk(fixture: DeskFixture): void {
     const desk = new THREE.Group();
-    desk.position.set(x, 0, z);
-    addBox(desk, [width, 0.12, 0.92], [0, 0.78, 0], 0x80573d, { roughness: 0.68 });
-    addBox(desk, [0.1, 0.76, 0.1], [-width * 0.4, 0.38, 0], 0x263944);
-    addBox(desk, [0.1, 0.76, 0.1], [width * 0.4, 0.38, 0], 0x263944);
+    desk.position.set(fixture.x, 0, fixture.z);
+    desk.rotation.y = fixture.facing - Math.PI;
+    const width = fixture.width;
+    const accent = fixture.accent;
+    const standing = fixture.restPose === 'stand';
+    addBox(desk, [width, standing ? 0.1 : 0.12, 0.92], [0, standing ? 0.96 : 0.78, 0], 0x80573d, { roughness: 0.68 });
+    addBox(desk, [0.1, standing ? 0.94 : 0.76, 0.1], [-width * 0.4, standing ? 0.47 : 0.38, 0], 0x263944);
+    addBox(desk, [0.1, standing ? 0.94 : 0.76, 0.1], [width * 0.4, standing ? 0.47 : 0.38, 0], 0x263944);
 
+    const desktopY = standing ? 1.03 : 0.855;
     const screenMaterial = new THREE.MeshStandardMaterial({
       color: 0x12222c,
       emissive: accent,
@@ -2865,20 +2935,20 @@ export class OfficeWorld {
       roughness: 0.34
     });
     const screen = new THREE.Mesh(new THREE.BoxGeometry(width * 0.45, 0.52, 0.07), screenMaterial);
-    screen.position.set(0, 1.15, -0.18);
+    screen.position.set(0, standing ? 1.33 : 1.15, -0.18);
     screen.castShadow = true;
     desk.add(screen);
-    addBox(desk, [0.08, 0.28, 0.08], [0, 0.94, -0.18], 0x263944);
-    addBox(desk, [0.5, 0.025, 0.22], [0, 0.855, 0.18], 0x18252c, { roughness: 0.52 });
+    addBox(desk, [0.08, 0.28, 0.08], [0, standing ? 1.12 : 0.94, -0.18], 0x263944);
+    addBox(desk, [0.5, 0.025, 0.22], [0, desktopY, 0.18], 0x18252c, { roughness: 0.52 });
     for (const xOffset of [-0.18, -0.09, 0, 0.09, 0.18]) {
       for (const zOffset of [0.13, 0.19, 0.25]) {
-        addBox(desk, [0.055, 0.012, 0.035], [xOffset, 0.874, zOffset], 0x5f717a, {
+        addBox(desk, [0.055, 0.012, 0.035], [xOffset, desktopY + 0.019, zOffset], 0x5f717a, {
           roughness: 0.44,
           castShadow: false
         });
       }
     }
-    addBox(desk, [0.22, 0.012, 0.28], [width * 0.31, 0.852, 0.18], 0x28343a, {
+    addBox(desk, [0.22, 0.012, 0.28], [width * 0.31, desktopY - 0.003, 0.18], 0x28343a, {
       roughness: 0.78,
       castShadow: false
     });
@@ -2887,15 +2957,17 @@ export class OfficeWorld {
       standardMaterial(0x111b21, 0.38)
     );
     mouse.scale.set(0.78, 0.32, 1.15);
-    mouse.position.set(width * 0.31, 0.886, 0.18);
+    mouse.position.set(width * 0.31, desktopY + 0.031, 0.18);
     mouse.castShadow = true;
     desk.add(mouse);
 
-    const chair = new THREE.Group();
-    addBox(chair, [0.48, 0.08, 0.44], [0, 0.46, 0], 0x274655);
-    addBox(chair, [0.48, 0.62, 0.08], [0, 0.76, 0.19], 0x274655);
-    chair.position.set(0, 0, 0.86);
-    desk.add(chair);
+    if (!standing) {
+      const chair = new THREE.Group();
+      addBox(chair, [0.48, 0.08, 0.44], [0, 0.46, 0], 0x274655);
+      addBox(chair, [0.48, 0.62, 0.08], [0, 0.76, 0.19], 0x274655);
+      chair.position.set(0, 0, 0.86);
+      desk.add(chair);
+    }
     this.room.add(desk);
   }
 
@@ -3070,12 +3142,12 @@ export class OfficeWorld {
     }
 
     for (const [label, accent, x, z] of [
-      ['ŘEDITELNA', '#f4b85c', -6.9, -0.98],
-      ['STUDIO', '#39d98a', 0, -0.98],
-      ['DEBUG LAB', '#ff5f6d', 6.2, -0.98],
-      ['LOUNGE', '#9d7cff', -4.4, 1.04],
-      ['PORADA', '#43b9c8', 6.2, 1.04],
-      ['KUCHYŇKA', '#8fd4a8', -8.05, 0.05]
+      [t('roomExecutive'), '#f4b85c', -6.9, -0.98],
+      [t('roomStudio'), '#39d98a', 0, -0.98],
+      [t('roomDebug'), '#ff5f6d', 6.2, -0.98],
+      [t('roomLounge'), '#9d7cff', -4.4, 1.04],
+      [t('roomMeeting'), '#43b9c8', 6.2, 1.04],
+      [t('roomKitchen'), '#8fd4a8', -8.05, 0.05]
     ] as const) {
       const sign = createTextSprite(label, accent);
       sign.scale.set(1.34, 0.22, 1);
@@ -3083,8 +3155,8 @@ export class OfficeWorld {
       this.room.add(sign);
     }
 
-    this.createDesk(ownerDeskFixture.x, ownerDeskFixture.z, ownerDeskFixture.width, ownerDeskFixture.accent);
-    agentDeskFixtures.forEach(item => this.createDesk(item.x, item.z, item.width, item.accent));
+    this.createDesk(ownerDeskFixture);
+    agentDeskFixtures.forEach(item => this.createDesk(item));
     this.createKitchenette();
 
     const meetingTable = new THREE.Mesh(
@@ -3128,21 +3200,21 @@ export class OfficeWorld {
       roughness: 0.5,
       castShadow: false
     });
-    const debugLabel = createTextSprite('BUILD • TEST • REVIEW', '#ff5f6d');
+    const debugLabel = createTextSprite(t('roomDebugProcess'), '#ff5f6d');
     debugLabel.scale.set(1.65, 0.24, 1);
     debugLabel.position.set(6.45, 2.72, -6.03);
     this.room.add(debugLabel);
 
     addBox(this.room, [1.9, 0.92, 0.68], [-8.2, 0.46, 3.58], 0x304b57);
     addBox(this.room, [0.82, 0.48, 0.055], [-8.2, 1.08, 3.22], 0x16242b, { emissive: 0x275a70 });
-    const receptionLabel = createTextSprite('VSTUP', '#6dcbe4');
+    const receptionLabel = createTextSprite(t('roomEntrance'), '#6dcbe4');
     receptionLabel.scale.set(1.1, 0.2, 1);
     receptionLabel.position.set(-8.25, 1.72, 3.25);
     this.room.add(receptionLabel);
 
     this.createPlant(-8.75, -5.4, 0.9);
-    this.createPlant(2.9, -5.4, 0.9);
-    this.createPlant(8.95, -5.4, 0.86);
+    this.createPlant(3.18, -5.42, 0.82);
+    this.createPlant(9.12, -5.42, 0.8);
     this.createPlant(2.02, 5.5, 0.82);
     this.createPlant(8.95, 5.5, 0.84);
   }
@@ -3228,6 +3300,7 @@ function leisureDwellSeconds(id: string, behavior: AgentBehavior): number {
 function canHaveCoffee(id: string, behavior: AgentBehavior): boolean {
   return behavior.phase === 'present'
     && behavior.status !== 'unknown'
+    && behavior.status !== 'working'
     && behavior.status !== 'error'
     && behavior.status !== 'offline'
     && !requestsAttention(id, behavior.status);
@@ -3241,7 +3314,7 @@ function coffeeAllowsConversation(behavior: AgentBehavior): boolean {
 
 function coffeeDestinationKinds(behavior: AgentBehavior): readonly OfficePoiKind[] {
   if (behavior.status === 'working') {
-    return ['desk', 'meeting', 'coffee'];
+    return ['desk'];
   }
   if (behavior.status === 'waitingForUser') {
     return ['meeting', 'lounge', 'coffee', 'idle'];

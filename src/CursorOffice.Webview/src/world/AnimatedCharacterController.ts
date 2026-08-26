@@ -5,10 +5,22 @@ import {
   visualRoleFor,
   type AgentSnapshot,
   type AgentStatus,
-  type AgentVisualRole
+  type AgentVisualRole,
+  type Eyewear,
+  type FacialHair,
+  type HairStyle,
+  type OwnerAppearancePreferences
 } from '../contracts';
-import { statusLabel } from '../i18n';
+import { statusLabel, t } from '../i18n';
 import { colorToCss } from '../ui/dom';
+import {
+  formatAgentActivity,
+  formatAgentContext,
+  formatAgentModel,
+  formatAgentTokens,
+  readHudDisplayPreferences,
+  type HudDisplayPreferences
+} from '../ui/OfficeHud';
 import { CharacterStateMachine, type CharacterVisualState } from './CharacterStateMachine';
 
 export type CharacterState = AgentStatus | 'owner';
@@ -32,25 +44,14 @@ export type CharacterDescriptor = {
   kind?: 'primary' | 'subagent';
   visualRole?: AgentVisualRole;
   appearanceKey?: string;
+  appearance?: OwnerAppearancePreferences;
 };
 
 function standardMaterial(color: number, roughness = 0.76): THREE.MeshStandardMaterial {
   return new THREE.MeshStandardMaterial({ color, roughness, metalness: 0.04 });
 }
 
-type HairStyle = 'bald' | 'buzz' | 'short' | 'sidePart' | 'executive' | 'bob' | 'long' | 'curly' | 'bun' | 'mohawk';
 type HeadAccessory = 'none' | 'beanie' | 'cap' | 'visor' | 'headphones';
-type FacialHair =
-  | 'none'
-  | 'stubble'
-  | 'mustache'
-  | 'soulPatch'
-  | 'goatee'
-  | 'anchor'
-  | 'fullBeard'
-  | 'muttonChops'
-  | 'sideburns';
-type Eyewear = 'none' | 'glasses' | 'sunglasses';
 type CharacterAppearance = {
   hairStyle: HairStyle;
   hairColor: number;
@@ -65,14 +66,14 @@ type CharacterAppearance = {
 };
 
 const hairColors = [
-  0x171412,
-  0x30231d,
-  0x513426,
-  0x75452c,
-  0x9b5c36,
-  0xb98b56,
+  0x171412, 0x171412, 0x171412, 0x171412, 0x171412,
+  0x30231d, 0x30231d, 0x30231d, 0x30231d, 0x30231d, 0x30231d, 0x30231d,
+  0x513426, 0x513426, 0x513426, 0x513426, 0x513426, 0x513426,
+  0x75452c, 0x75452c,
+  0x9b5c36, 0x9b5c36, 0x9b5c36, 0x9b5c36,
+  0xb98b56, 0xb98b56,
   0xd5c49a,
-  0x85878d,
+  0x85878d, 0x85878d,
   0x4b385f
 ] as const;
 
@@ -88,22 +89,23 @@ const skinColors = [
 
 const hairStyles: readonly HairStyle[] = [
   'bald',
-  'buzz',
-  'short',
-  'sidePart',
-  'bob',
-  'long',
-  'curly',
-  'bun',
+  'buzz', 'buzz', 'buzz',
+  'short', 'short', 'short', 'short', 'short', 'short',
+  'sidePart', 'sidePart', 'sidePart', 'sidePart', 'sidePart',
+  'bob', 'bob', 'bob',
+  'long', 'long', 'long',
+  'curly', 'curly', 'curly',
+  'bun', 'bun',
   'mohawk'
 ];
 
 const managerHairStyles: readonly HairStyle[] = [
-  'executive',
-  'sidePart',
-  'short',
-  'buzz',
-  'bob'
+  'executive', 'executive', 'executive', 'executive',
+  'sidePart', 'sidePart', 'sidePart', 'sidePart', 'sidePart',
+  'short', 'short', 'short', 'short', 'short',
+  'buzz', 'buzz',
+  'bob', 'bob',
+  'curly'
 ];
 
 const hatHairStyles: readonly HairStyle[] = ['bald', 'buzz', 'short'];
@@ -216,7 +218,11 @@ function stablePick<T>(values: readonly T[], seed: string): T {
   return values[stableHash(seed) % values.length];
 }
 
-function createAppearance(seed: string, visualRole: AgentVisualRole): CharacterAppearance {
+function createAppearance(
+  seed: string,
+  visualRole: AgentVisualRole,
+  ownerAppearance?: OwnerAppearancePreferences
+): CharacterAppearance {
   const isOwner = visualRole === 'owner';
   const isManager = visualRole === 'manager';
   const build = isOwner
@@ -231,7 +237,7 @@ function createAppearance(seed: string, visualRole: AgentVisualRole): CharacterA
       ? stablePick(chatAccessories, `${seed}:accessory`)
       : 'none';
   const hairPool = isOwner
-    ? ['executive'] as const
+    ? [ownerAppearance?.hairStyle ?? 'executive'] as const
     : isManager
       ? managerHairStyles
       : accessory === 'beanie' || accessory === 'cap' || accessory === 'visor'
@@ -239,22 +245,28 @@ function createAppearance(seed: string, visualRole: AgentVisualRole): CharacterA
         : hairStyles;
   return {
     hairStyle: stablePick(hairPool, `${seed}:hair-style`),
-    hairColor: isOwner ? 0x3d281f : stablePick(hairColors, `${seed}:hair-color`),
-    skinColor: isOwner ? 0xe8b991 : stablePick(skinColors, `${seed}:skin-color`),
+    hairColor: isOwner
+      ? parseAppearanceColor(ownerAppearance?.hairColor, 0x3d281f)
+      : stablePick(hairColors, `${seed}:hair-color`),
+    skinColor: isOwner
+      ? parseAppearanceColor(ownerAppearance?.skinColor, 0xe8b991)
+      : stablePick(skinColors, `${seed}:skin-color`),
     widthScale: build.width,
     heightScale: THREE.MathUtils.clamp(build.height * heightVariation, 0.9, 1.12),
     depthScale: build.depth,
     accessory,
-    accessoryColor: stablePick(accessoryColors, `${seed}:accessory-color`),
+    accessoryColor: accessory === 'headphones'
+      ? stablePick(accessoryColors, `${seed}:accessory-color`)
+      : roleAccessoryColor(visualRole, seed),
     facialHair: isOwner
-      ? 'none'
+      ? ownerAppearance?.facialHair ?? 'none'
       : isManager
         ? stablePick(managerFacialHair, `${seed}:facial-hair`)
         : visualRole === 'subagent'
           ? stablePick(workerFacialHair, `${seed}:facial-hair`)
           : stablePick(chatFacialHair, `${seed}:facial-hair`),
     eyewear: isOwner
-      ? 'none'
+      ? ownerAppearance?.eyewear ?? 'none'
       : isManager
         ? stablePick(managerEyewear, `${seed}:eyewear`)
         : visualRole === 'subagent'
@@ -263,15 +275,23 @@ function createAppearance(seed: string, visualRole: AgentVisualRole): CharacterA
   };
 }
 
+function parseAppearanceColor(value: string | undefined, fallback: number): number {
+  return value && /^#[0-9a-f]{6}$/iu.test(value)
+    ? Number.parseInt(value.slice(1), 16)
+    : fallback;
+}
+
 function roleShirtColor(role: AgentVisualRole, seed: string): number {
   const color = new THREE.Color(roleColors[role]);
   if (role !== 'owner') {
-    color.offsetHSL(
-      (stableUnit(`${seed}:shirt-hue`) - 0.5) * 0.025,
-      (stableUnit(`${seed}:shirt-saturation`) - 0.5) * 0.06,
-      (stableUnit(`${seed}:shirt-lightness`) - 0.5) * 0.09
-    );
+    color.offsetHSL(0, 0, (stableUnit(`${seed}:shirt-lightness`) - 0.5) * 0.04);
   }
+  return color.getHex();
+}
+
+function roleAccessoryColor(role: AgentVisualRole, seed: string): number {
+  const color = new THREE.Color(roleColors[role]);
+  color.offsetHSL(0, -0.08, (stableUnit(`${seed}:hat-lightness`) - 0.5) * 0.12 - 0.08);
   return color.getHex();
 }
 
@@ -762,6 +782,7 @@ type AgentLabelContent = {
   model: string;
   task: string;
   tokens: string;
+  context?: string;
   status: string;
   accent: string;
 };
@@ -828,9 +849,12 @@ function paintOwnerLabel(sprite: THREE.Sprite, name: string, role: string, accen
 }
 
 function paintAgentLabel(sprite: THREE.Sprite, content: AgentLabelContent): void {
+  const hasTelemetry = Boolean(content.model || content.tokens);
+  const hasContext = Boolean(content.context);
+  const hasTask = Boolean(content.task);
   const canvas = document.createElement('canvas');
   canvas.width = 1024;
-  canvas.height = 300;
+  canvas.height = 220 + (hasTelemetry ? 70 : 0) + (hasContext ? 52 : 0) + (hasTask ? 70 : 0);
   const context = canvas.getContext('2d');
   if (!context) {
     return;
@@ -838,41 +862,57 @@ function paintAgentLabel(sprite: THREE.Sprite, content: AgentLabelContent): void
 
   context.fillStyle = 'rgba(6, 15, 21, 0.95)';
   context.beginPath();
-  context.roundRect(7, 7, 1010, 286, 30);
+  context.roundRect(7, 7, canvas.width - 14, canvas.height - 14, 30);
   context.fill();
   context.strokeStyle = content.accent;
   context.lineWidth = 8;
   context.stroke();
 
+  let y = 65;
   context.textBaseline = 'middle';
   context.fillStyle = '#f4f8fa';
   context.font = '700 56px Inter, Segoe UI, sans-serif';
   context.textAlign = 'left';
-  context.fillText(fitCanvasText(context, content.name, 610), 46, 65);
+  context.fillText(fitCanvasText(context, content.name, 610), 46, y);
   context.fillStyle = content.accent;
   context.font = '700 29px Inter, Segoe UI, sans-serif';
   context.textAlign = 'right';
-  context.fillText(fitCanvasText(context, content.status, 300), 974, 65);
+  context.fillText(fitCanvasText(context, content.status, 300), 974, y);
 
-  context.fillStyle = '#9ed8e8';
-  context.font = '600 30px Inter, Segoe UI, sans-serif';
-  context.textAlign = 'left';
-  context.fillText(fitCanvasText(context, content.model, 480), 46, 137);
-  context.fillStyle = '#d9bd82';
-  context.font = '500 27px Inter, Segoe UI, sans-serif';
-  context.textAlign = 'right';
-  context.fillText(fitCanvasText(context, content.tokens, 430), 974, 137);
+  if (hasTelemetry) {
+    y += 72;
+    context.fillStyle = '#9ed8e8';
+    context.font = '600 30px Inter, Segoe UI, sans-serif';
+    context.textAlign = 'left';
+    context.fillText(fitCanvasText(context, content.model, 480), 46, y);
+    context.fillStyle = '#d9bd82';
+    context.font = '500 27px Inter, Segoe UI, sans-serif';
+    context.textAlign = 'right';
+    context.fillText(fitCanvasText(context, content.tokens, 430), 974, y);
+  }
 
-  context.strokeStyle = 'rgba(212, 236, 244, 0.12)';
-  context.lineWidth = 2;
-  context.beginPath();
-  context.moveTo(46, 179);
-  context.lineTo(978, 179);
-  context.stroke();
-  context.fillStyle = '#b8c8cf';
-  context.font = '500 30px Inter, Segoe UI, sans-serif';
-  context.textAlign = 'left';
-  context.fillText(fitCanvasText(context, `Dělá: ${content.task}`, 925), 46, 232);
+  if (hasContext) {
+    y += 52;
+    context.fillStyle = '#8ec8b4';
+    context.font = '500 26px Inter, Segoe UI, sans-serif';
+    context.textAlign = 'left';
+    context.fillText(fitCanvasText(context, `${t('contextWindow')}: ${content.context}`, 925), 46, y);
+  }
+
+  if (hasTask) {
+    y += 42;
+    context.strokeStyle = 'rgba(212, 236, 244, 0.12)';
+    context.lineWidth = 2;
+    context.beginPath();
+    context.moveTo(46, y);
+    context.lineTo(978, y);
+    context.stroke();
+    y += 40;
+    context.fillStyle = '#b8c8cf';
+    context.font = '500 30px Inter, Segoe UI, sans-serif';
+    context.textAlign = 'left';
+    context.fillText(fitCanvasText(context, `${t('doingPrefix')}: ${content.task}`, 925), 46, y);
+  }
 
   replaceSpriteTexture(sprite, canvas);
 }
@@ -886,13 +926,6 @@ function fitCanvasText(context: CanvasRenderingContext2D, value: string, maxWidt
     shortened = shortened.slice(0, -1);
   }
   return `${shortened}…`;
-}
-
-function formatLabelTokens(value: number): string {
-  return new Intl.NumberFormat('cs-CZ', {
-    notation: value >= 10_000 ? 'compact' : 'standard',
-    maximumFractionDigits: 1
-  }).format(value);
 }
 
 export class CharacterController {
@@ -952,13 +985,15 @@ export class CharacterController {
           : descriptor.kind === 'subagent'
             ? 'subagent'
             : 'chat');
-    const appearance = createAppearance(this.appearanceKey, initialRole);
+    const appearance = createAppearance(this.appearanceKey, initialRole, descriptor.appearance);
     this.body.scale.set(appearance.widthScale, appearance.heightScale, appearance.depthScale);
 
     this.torsoMaterial = standardMaterial(
       roleShirtColor(initialRole, this.appearanceKey),
       0.63
     );
+    this.torsoMaterial.emissive.setHex(roleColors[initialRole]);
+    this.torsoMaterial.emissiveIntensity = 0.16;
     const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.25, 0.46, 6, 10), this.torsoMaterial);
     torso.position.y = 0.79;
     torso.castShadow = true;
@@ -1225,22 +1260,20 @@ export class CharacterController {
     }
   }
 
-  public setMetadata(snapshot: AgentSnapshot): void {
+  public setMetadata(snapshot: AgentSnapshot, display?: HudDisplayPreferences): void {
     if (this.descriptor.isOwner) {
       return;
     }
     const visualRole = visualRoleFor(snapshot);
     this.torsoMaterial.color.setHex(roleShirtColor(visualRole, this.appearanceKey));
-    const isManager = snapshot.id.startsWith('cursor-window-manager-');
-    const teamModels = snapshot.teamModels?.filter(Boolean) ?? [];
-    const model = isManager
-      ? teamModels.length > 0 ? teamModels.slice(0, 2).join(' + ') : 'modely týmu čekají na hook'
-      : snapshot.model?.trim() || 'model čeká na hook';
-    const task = snapshot.currentTask?.trim() || snapshot.role || 'Bez aktuálního úkolu';
-    const tokens = snapshot.usage
-      ? `${formatLabelTokens(snapshot.usage.totalTokens)} tok. / ${snapshot.usageScope === 'workspace' ? 'repo' : 'generace'}`
-      : snapshot.status === 'working' ? 'tokeny po dokončení' : 'tokeny Cursor neposlal';
-    const key = [snapshot.displayName, model, task, tokens, snapshot.status].join('\u0000');
+    this.torsoMaterial.emissive.setHex(roleColors[visualRole]);
+    this.torsoMaterial.emissiveIntensity = 0.16;
+    const flags = display ?? readHudDisplayPreferences();
+    const model = flags.showModel ? formatAgentModel(snapshot) : '';
+    const task = flags.showActivity ? formatAgentActivity(snapshot) : '';
+    const tokens = flags.showTokens ? formatAgentTokens(snapshot) : '';
+    const context = flags.showTokens ? formatAgentContext(snapshot, true) : undefined;
+    const key = [snapshot.displayName, model, task, tokens, context ?? '', snapshot.status].join('\u0000');
     if (key === this.labelKey) {
       return;
     }
@@ -1250,6 +1283,7 @@ export class CharacterController {
       model,
       task,
       tokens,
+      context,
       status: statusLabel(snapshot.status),
       accent: colorToCss(statusColors[snapshot.status])
     };
@@ -1356,7 +1390,11 @@ export class CharacterController {
       ? 2.2
       : 0.9 + Math.sin(timeSeconds * 2.5 + index) * 0.28;
     const compactScale = this.descriptor.isOwner ? [1.48, 0.27] : [1.58, 0.29];
-    const expandedScale = this.descriptor.isOwner ? [2.5, 0.58] : [3.15, 0.92];
+    const expandedScale = this.descriptor.isOwner
+      ? [2.5, 0.58]
+      : this.labelContent?.context
+        ? [3.15, 1.12]
+        : [3.15, 0.92];
     const targetScale = shouldExpandLabel ? expandedScale : compactScale;
     this.labelSprite.scale.x = damp(this.labelSprite.scale.x, targetScale[0], 14, deltaSeconds);
     this.labelSprite.scale.y = damp(this.labelSprite.scale.y, targetScale[1], 14, deltaSeconds);

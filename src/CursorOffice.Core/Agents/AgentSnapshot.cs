@@ -22,6 +22,8 @@ public sealed record AgentSnapshot
         bool isParallelWorker = false,
         string? generationId = null,
         TokenUsage? usage = null,
+        ModelParams? modelParams = null,
+        ContextUsage? contextUsage = null,
         AgentInteractionKind? interactionKind = null,
         string? workspacePath = null,
         bool isFallback = false,
@@ -48,6 +50,8 @@ public sealed record AgentSnapshot
         IsParallelWorker = isParallelWorker;
         GenerationId = generationId;
         Usage = usage;
+        ModelParams = modelParams;
+        ContextUsage = contextUsage;
         InteractionKind = interactionKind;
         WorkspacePath = workspacePath;
         IsFallback = isFallback;
@@ -84,6 +88,10 @@ public sealed record AgentSnapshot
     public string? GenerationId { get; }
 
     public TokenUsage? Usage { get; }
+
+    public ModelParams? ModelParams { get; }
+
+    public ContextUsage? ContextUsage { get; }
 
     public AgentInteractionKind? InteractionKind { get; }
 

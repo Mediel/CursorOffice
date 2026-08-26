@@ -9,10 +9,37 @@ export type AgentStatus =
 
 export type AgentVisualRole = 'owner' | 'manager' | 'chat' | 'subagent';
 export type OfficeLanguage = 'cs' | 'en';
+export type OfficeLanguageSetting = 'auto' | OfficeLanguage;
 export type OfficeRoleColors = Record<AgentVisualRole, string>;
+export type HairStyle = 'bald' | 'buzz' | 'short' | 'sidePart' | 'executive' | 'bob' | 'long' | 'curly' | 'bun' | 'mohawk';
+export type FacialHair = 'none' | 'stubble' | 'mustache' | 'soulPatch' | 'goatee' | 'anchor' | 'fullBeard' | 'muttonChops' | 'sideburns';
+export type Eyewear = 'none' | 'glasses' | 'sunglasses';
+export type OwnerAppearancePreferences = {
+  hairStyle: HairStyle;
+  hairColor: string;
+  skinColor: string;
+  facialHair: FacialHair;
+  eyewear: Eyewear;
+};
 export type OfficePreferences = {
   language: OfficeLanguage;
   roleColors: OfficeRoleColors;
+  ownerAppearance?: OwnerAppearancePreferences;
+  showModel?: boolean;
+  showTokens?: boolean;
+  showActivity?: boolean;
+};
+
+export type OfficeSettingsSnapshot = {
+  language: OfficeLanguageSetting;
+  ownerName: string;
+  officeName: string;
+  officeLogoPath: string;
+  roleColors: OfficeRoleColors;
+  ownerAppearance: OwnerAppearancePreferences;
+  showModel: boolean;
+  showTokens: boolean;
+  showActivity: boolean;
 };
 
 export type AgentSnapshot = {
@@ -27,9 +54,11 @@ export type AgentSnapshot = {
   parentAgentId?: string | null;
   workspace?: string | null;
   model?: string | null;
+  modelParams?: ModelParams | null;
   isParallelWorker?: boolean;
   generationId?: string | null;
   usage?: TokenUsage | null;
+  contextUsage?: ContextUsage | null;
   interactionKind?: AgentInteractionKind | null;
   workspacePath?: string | null;
   windowId?: string | null;
@@ -47,12 +76,24 @@ export type AgentInteractionKind =
   | 'delegationStarted'
   | 'handoffCompleted';
 
+export type ModelParams = {
+  thinking?: string | null;
+  effort?: string | null;
+  context?: string | null;
+};
+
 export type TokenUsage = {
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
   cacheWriteTokens: number;
   totalTokens: number;
+};
+
+export type ContextUsage = {
+  contextTokens?: number | null;
+  contextWindowSize?: number | null;
+  contextUsagePercent?: number | null;
 };
 
 export type UsageBucket = TokenUsage & {
@@ -73,6 +114,7 @@ export type OfficeOwner = {
   displayName: string;
   role: string;
   accent: string;
+  appearance?: OwnerAppearancePreferences;
 };
 
 export type OfficeBrand = {
@@ -98,6 +140,7 @@ export type OfficeBootstrap = {
   usage?: UsageLedgerSnapshot;
   currentWindow?: CursorWindowSnapshot;
   windows?: CursorWindowSnapshot[];
+  settings?: OfficeSettingsSnapshot;
 };
 
 export type HostMessage = {
