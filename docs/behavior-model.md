@@ -51,7 +51,7 @@ Cursor Office slučuje několik lokálních zdrojů. Vyšší zdroj nesmí být 
 2. **Lokální metadata transcript souborů** – fallback pro workflow, které nevyšle potřebný hook. Sleduje pouze cestu, velikost a čas změny; obsah `.jsonl` neotevírá.
 3. **Prezentační projekce Webview** – z agentů a živých oken sestaví manažery, týmovou hierarchii, cíle v místnostech a animace. Nemění skutečný Cursor stav.
 
-Jakmile bylo stejné ID pozorováno přes skutečný hook, starší fallback metadata nesmí zrušit terminální stav `completed`, `offline` ani `error`. Novější zápis do transcript souboru může znovu nastavit `working` — po neterminálním hook stavu jako `waitingForUser` i po `stop`, pokud soubor je novější než ukončovací událost. Aktivní podagent drží rodiče ve stavu práce i po `afterAgentResponse`. Fallback kontroluje změny přibližně po 300 ms, vlastní soubor považuje za aktivní 3 minuty a podagenta nechá u stolu až 8 minut, pokud se mezitím hýbe rodičovský transcript.
+Jakmile bylo stejné ID pozorováno přes skutečný hook, starší fallback metadata nesmí zrušit terminální stav `completed`, `offline` ani `error`. Novější zápis do transcript souboru může znovu nastavit `working` — po neterminálním hook stavu jako `waitingForUser` i po `stop`, pokud soubor je novější než ukončovací událost. Chybí-li `stop` a transcript i hook přestanou dodávat důkaz práce, fallback smí neterminální hook `working` shodit na `idle`. Aktivní podagent drží rodiče ve stavu práce i po `afterAgentResponse`. Fallback kontroluje změny přibližně po 300 ms, vlastní soubor považuje za aktivní 3 minuty a podagenta nechá u stolu až 8 minut, pokud se mezitím hýbe rodičovský transcript. Host stejné tříminutové (u podagenta až osmiminutové) evidenční okno použije i na snapshoty obnovené z activity logu, aby historické `working` po restartu nezaplnilo kancelář.
 
 ## Pracovní tok a sociální předávání
 
@@ -129,8 +129,11 @@ Syntetický manažer okna může týmový stav `waitingForUser` agregovat, ale g
 
 - Skutečný `completed` nebo `offline` stav dovolí postavě přejít do volného režimu a později odejít.
 - Pouze neaktivní chat obvykle nejprve přejde do `idle`; host jej drží až 30 minut od poslední aktivity, aby se při návratu nemusel znovu rodit u vstupu.
-- Dokončený primární snapshot má v hostu retenci 20 minut, ale jeho vizuální pracovní postava pod manažerem může po terminálním signálu odejít dříve.
+- Stav `working` bez čerstvého hooku ani transcript zápisu po 3 minutách přejde do `idle` (podagent až 8 minut, pokud je rodič stále čerstvě `working`). Poslední čas aktivity se při tomto přechodu nemění, takže dávno tiché obnovené snapshoty se hned poté odstraní idle TTL.
+- `waitingForUser` má stejnou host retenci jako `idle` (30 minut primární, 2 minuty podagent), aby opuštěné čekající chaty nezůstaly v kanceláři napořád.
+- Dokončený nebo chybový primární snapshot má v hostu retenci 20 minut, ale jeho vizuální pracovní postava pod manažerem může po terminálním signálu odejít dříve.
 - Neznámý stav má retenci 10 minut a primární `offline` stav 28 sekund.
+- Zánik heartbeat Cursor okna přepne všechny k němu přiřazené chaty i jejich subagenty do `offline`. Host je potom drží 28 sekund (subagenty 12 sekund) a teprve poté je odstraní. Fallback z transcriptu je bez nového okna znovu neprobudí; nový hook nebo aktivita s jiným živým `windowId` odchod zruší.
 - Nová aktivita se stejným `conversation_id` zruší odchod nebo postavu znovu legitimně přivede.
 
 ### Subagent
@@ -143,7 +146,7 @@ Syntetický manažer okna může týmový stav `waitingForUser` agregovat, ale g
 
 ### Manažer okna
 
-Manažer existuje, dokud je živý heartbeat jeho Cursor okna. Po ukončení extension-host procesu se záznam vyřadí okamžitě; při nedostupném PID expiruje nejpozději po sedmisekundové heartbeat lease a manažer zahájí fyzický odchod. Znovuotevření stejného logického okna převáže nové runtime ID na existující postavu, aby nevznikl odcházející a přicházející dvojník. Manažer není runtime agent, proto nemá vlastní model, tokeny ani samostatný Cursor úkol.
+Manažer existuje, dokud je živý heartbeat jeho Cursor okna. Po ukončení extension-host procesu se záznam vyřadí okamžitě; při nedostupném PID expiruje nejpozději po sedmisekundové heartbeat lease a manažer zahájí fyzický odchod. Ve stejném okamžiku host označí chaty i subagenty tohoto okna jako `offline`. Znovuotevření stejného logického okna převáže nové runtime ID na existující postavu manažera, aby nevznikl odcházející a přicházející dvojník. Manažer není runtime agent, proto nemá vlastní model, tokeny ani samostatný Cursor úkol.
 
 Časy jsou výchozí implementační hodnoty, ne smlouva Cursor API. Rozhovor ve frontě, čekání ve dveřích nebo delší kolizně bezpečná cesta mohou vizuální odchod posunout.
 

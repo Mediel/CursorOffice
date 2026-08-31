@@ -130,7 +130,7 @@ Ruční pohyb majitele má vždy prioritu. Po devíti sekundách nečinnosti, po
 - obecná hierarchie `majitel → workspace → manažer Cursor okna → agent hlavního chatu → subagent`, stabilní identity a časově omezený lifecycle ukončených instancí,
 - model každé postavy, pokud jej Cursor oznámí, a otevíratelný privacy-preserving lokální tokenový ledger po úplné cestě workspace, modelu, kombinaci workspace/model a dni,
 - skutečné hook stavy mají přednost před fallback odhadem podle času transcriptu, takže ukončenou práci znovu falešně neaktivuje starší metadata souboru,
-- pouze neaktivní hlavní chat zůstává dlouhodobě jako člen kanceláře; terminálně dokončený pracovní agent a dočasný podagent po dokončení, zastavení, chybě nebo zániku instance krátce odpočívají či se potulují a až poté odejdou dveřmi. Manažer odchází po zániku heartbeat svého Cursor okna,
+- pouze neaktivní hlavní chat zůstává dlouhodobě jako člen kanceláře; terminálně dokončený pracovní agent a dočasný podagent po dokončení, zastavení, chybě nebo zániku instance krátce odpočívají či se potulují a až poté odejdou dveřmi. Zánik heartbeat Cursor okna odvede manažera i k němu přiřazené chaty,
 - rozložení a týmový panel ověřené s deseti současnými agenty,
 - samostatný demonstrační režim Webview pro vývoj scény; instalovaná extension při prázdném hostu nevytváří fiktivní agenty.
 

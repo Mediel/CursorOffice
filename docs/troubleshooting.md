@@ -10,7 +10,7 @@ cursor.cmd --list-extensions --show-versions | Select-String cursor-office
 
 Po aktualizaci spusťte `Developer: Reload Window` v každém otevřeném Cursor okně. Reload pouze záložky Cursor Office nestačí, protože lokální host vlastní celý extension host okna.
 
-Aktuální očekávaná verze je `cursor-office.cursor-office@0.1.48`.
+Aktuální očekávaná verze je `cursor-office.cursor-office@0.1.49`.
 
 ## Kancelář se neotevře nebo zůstane prázdná
 
@@ -70,10 +70,19 @@ Zkontrolujte:
 
 Soubory v `events-v3` nemažte během testu: jde o desetiminutový broadcast pro všechny současné hosty a jejich přítomnost po přečtení je normální.
 
+## Kancelář je plná pracujících agentů, ale v Cursoru nikdo neběží
+
+Activity log obnovuje poslední snapshot každého ID. Stav `working` dříve neměl TTL, takže tiché chaty a transcript fallback bez `windowId` zůstaly u stolů i po restartu. Od této opravy host před `agents.snapshot` i každých 5 sekund:
+
+- shodí `working` bez čerstvého důkazu práce (3 minuty, podagent až 8 minut při čerstvém rodiči) na `idle` bez posunu `lastActivityAt`,
+- teprve potom uplatní idle/waiting retenci a staré identity odstraní.
+
+Po aktualizaci hostu spusťte `Developer: Reload Window` v každém Cursor okně. Samotný reload záložky kanceláře starý proces nevymění. Pokud po reloadu přetrvá jediný čerstvý chat, jde o aktuální fallback nebo hook, ne o historický ghost.
+
 ## Postava stále ukazuje práci po dokončení
 
 - Skutečný `afterAgentResponse`, `subagentStop`, `stop` nebo failure hook má stav ukončit.
-- Pokud chybí terminální hook, fallback může čekat na vypršení aktivního okna.
+- Pokud chybí terminální hook, fallback nebo host evidenční okno po 3 minutách přepne `working` na `idle`.
 - Aktivní podagent záměrně drží rodičovský chat ve stavu koordinace.
 - Frontovaný handoff může dočasně odložit odchod dokončeného subagenta.
 - Otevřená kancelář ve starém nereloadovaném okně může používat starý host; reloadujte všechna okna.
@@ -83,7 +92,9 @@ Soubory v `events-v3` nemažte během testu: jde o desetiminutový broadcast pro
 Pouhá neviditelná záložka není spolehlivá Cursor lifecycle událost. Přibližné výchozí chování:
 
 - dokončený subagent má volný režim a odchází zhruba po 48–90 sekundách,
-- idle hlavní chat může host držet až 30 minut,
+- zavřené Cursor okno přepne k němu přiřazené chaty do `offline`; hlavní chat odejde zhruba po 28 sekundách a subagent po 12 sekundách,
+- idle nebo `waitingForUser` hlavní chat může host držet až 30 minut,
+- `working` bez nového hooku ani transcript zápisu po 3 minutách přejde na `idle`,
 - dokončený hlavní snapshot má host retenci 20 minut, ale vizuální postava může po terminálním signálu odejít dříve,
 - rozhovor, čekání ve dveřích nebo návrat na původní místo může odchod posunout,
 - čerstvá aktivita stejného ID odchod správně ruší.
@@ -107,7 +118,7 @@ Veřejný Cursor Hooks kontrakt **účtované tokeny negarantuje**. Ledger zapis
 - jedna generace se deduplikuje a průběžné hodnoty se slučují maximem,
 - zaplnění kontextu z `preCompact` není tokenový ledger; chybí-li řádek „kontextové okno“, hook zatím `preCompact` neposlal nebo nenesl `context_tokens` / `context_window_size` / `context_usage_percent`.
 
-Lokální ledger je `%LOCALAPPDATA%/CursorOffice/usage-ledger.json`. Neobsahuje prompt, odpověď ani kontextové okno.
+Lokální ledger je `%LOCALAPPDATA%/CursorOffice/usage-ledger.json`. Neobsahuje prompt, odpověď ani kontextové okno. Lokální activity log je `%LOCALAPPDATA%/CursorOffice/activity-log.ndjson`; timeline nese jen `kind`, volitelný `tool`, čas a `status`.
 
 ## Jména chatů jsou jen krátká ID
 
@@ -143,7 +154,7 @@ Dočasně lze změnit úhel kamery nebo filtr, ale filtr nemění fyzický stav 
 - `Esc` výběr zruší a potom stejné klávesy opět pohybují kamerou.
 - Když majitel sedí, nejprve přehraje vstávání; pohyb začne po dokončení přechodu.
 
-Pokud se postava pohybuje, ale nohy zůstávají nehybné, ověřte verzi `0.1.48` a reload všech oken.
+Pokud se postava pohybuje, ale nohy zůstávají nehybné, ověřte verzi `0.1.49` a reload všech oken.
 
 ## Kamera je mimo kancelář nebo má špatný úhel
 

@@ -76,6 +76,23 @@ export type AgentInteractionKind =
   | 'delegationStarted'
   | 'handoffCompleted';
 
+export type AgentActivityKind =
+  | 'userPrompt'
+  | 'agentResponse'
+  | 'delegationStarted'
+  | 'handoffCompleted'
+  | 'tool'
+  | 'status';
+
+/** Privacy-safe timeline row. Never includes prompt, reasoning, file bodies or tool output. */
+export type AgentActivityEvent = {
+  agentId: string;
+  occurredAt: string;
+  kind: AgentActivityKind | (string & {});
+  status: AgentStatus;
+  tool?: string | null;
+};
+
 export type ModelParams = {
   thinking?: string | null;
   effort?: string | null;
@@ -141,6 +158,8 @@ export type OfficeBootstrap = {
   currentWindow?: CursorWindowSnapshot;
   windows?: CursorWindowSnapshot[];
   settings?: OfficeSettingsSnapshot;
+  restoreTeam?: boolean;
+  activity?: AgentActivityEvent[];
 };
 
 export type HostMessage = {

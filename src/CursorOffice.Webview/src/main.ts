@@ -110,9 +110,19 @@ function renderBootstrap(): void {
     : selectedWindowId === 'unassigned'
       ? allAgents.filter(agent => !agent.windowId)
       : allAgents.filter(agent => agent.windowId === selectedWindowId);
-  const projection = { ...latestBootstrap, agents };
+  const projection = {
+    ...latestBootstrap,
+    agents,
+    restoreTeam: latestBootstrap.restoreTeam,
+    activity: latestBootstrap.activity
+  };
   hud.applyBootstrap(projection);
-  world.applyBootstrap({ ...latestBootstrap, agents: allAgents });
+  world.applyBootstrap({
+    ...latestBootstrap,
+    agents: allAgents,
+    restoreTeam: latestBootstrap.restoreTeam,
+    activity: latestBootstrap.activity
+  });
   world.setWindowFilter(selectedWindowId);
 }
 

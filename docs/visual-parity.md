@@ -10,7 +10,7 @@ Referenčním bodem je The Delegation v0.2.0. Cursor Office nemá kopírovat jeh
 | Postavy | vlastní procedurální kloubový rig, obličej a deklarativní stavový automat: sednutí/vstávání, práce u klávesnice, hovor, poslech, mávání, protažení, pití kávy a emoce | Blender/GLB rig při zachování stejného stavového kontraktu |
 | Pohyb | visibility-graph A*, kolize nábytku/stěn, sliding, konstantní rychlost a exkluzivně rezervované POI | navmesh generovaný z finálního modelu |
 | Interakce | volná orbit/pan/zoom kamera ovládaná myší i klávesami, perzistence pohledu, raycasting, výběr, přístupný seznam a ovladatelný majitel | kontextové akce a schvalování |
-| Inspector | role, úkol, stav, model a doložené tokeny poslední generace | activity historie, tool calls a usage dashboard |
+| Inspector | role, úkol, stav, model, doložené tokeny poslední generace a privacy-safe activity timeline | activity historie, tool calls a usage dashboard |
 | Živá data | Cursor Hooks + fallback metadata transcriptů, primary/subagent hierarchie, stabilní ID, parent/workspace/model a TTL cleanup | uživatelské názvy rolí, ACP adaptér |
 | Workflow | stavové zóny, exkluzivní POI a nábytkové approach/visual kotvy, dokončení → prodleva → odchod dveřmi → odstranění | activity timeline, kanban, delegace a review flow |
 | Výkon | jeden lokální bundle, omezené DPR a sdílený render loop | instancing, LOD a profilování desítek agentů |

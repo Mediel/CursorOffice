@@ -29,6 +29,14 @@ export type HostAgentSnapshot = {
   isFallback?: boolean;
 };
 
+export type HostActivityEvent = {
+  agentId: string;
+  occurredAt: string;
+  kind: string;
+  status: HostAgentSnapshot['status'];
+  tool?: string;
+};
+
 export type HostModelParams = {
   thinking?: string | null;
   effort?: string | null;
@@ -79,6 +87,9 @@ export class LocalHostClient implements vscode.Disposable {
   private readonly agents = new Map<string, HostAgentSnapshot>();
   private readonly agentEmitter = new vscode.EventEmitter<readonly HostAgentSnapshot[]>();
   private readonly usageEmitter = new vscode.EventEmitter<HostUsageSnapshot>();
+  private activity: HostActivityEvent[] = [];
+  private restoreTeamPending = false;
+  private liveAfterSnapshot = false;
   private usage: HostUsageSnapshot = emptyUsageSnapshot();
   private process: ChildProcessWithoutNullStreams | undefined;
   private reader: Interface | undefined;
@@ -97,6 +108,21 @@ export class LocalHostClient implements vscode.Disposable {
 
   public get currentUsage(): HostUsageSnapshot {
     return this.usage;
+  }
+
+  public get currentActivity(): readonly HostActivityEvent[] {
+    return [...this.activity];
+  }
+
+  /**
+   * Snapshot restore is not consumed by webview.ready/reload. Live
+   * agent.changed/removed bootstraps flip to restoreTeam: false.
+   */
+  public restoreTeamFor(cause: 'webview.ready' | 'agents'): boolean {
+    if (!this.restoreTeamPending) {
+      return false;
+    }
+    return cause === 'webview.ready' || !this.liveAfterSnapshot;
   }
 
   public start(): void {
@@ -198,8 +224,15 @@ export class LocalHostClient implements vscode.Disposable {
       return;
     }
     if (envelope.type === 'agent.removed' && this.isAgentRemoval(envelope.payload)) {
+      this.liveAfterSnapshot = true;
       if (this.agents.delete(envelope.payload.id)) {
         this.agentEmitter.fire(this.currentAgents);
+      }
+      return;
+    }
+    if (envelope.type === 'agents.snapshot') {
+      if (this.isAgentsSnapshot(envelope.payload)) {
+        this.applyAgentsSnapshot(envelope.payload);
       }
       return;
     }
@@ -207,8 +240,56 @@ export class LocalHostClient implements vscode.Disposable {
       return;
     }
 
+    this.liveAfterSnapshot = true;
     this.agents.set(envelope.payload.id, envelope.payload);
     this.agentEmitter.fire(this.currentAgents);
+  }
+
+  private applyAgentsSnapshot(payload: { agents: HostAgentSnapshot[]; activity: HostActivityEvent[] }): void {
+    this.agents.clear();
+    for (const agent of payload.agents) {
+      this.agents.set(agent.id, agent);
+    }
+    this.activity = payload.activity.map(event => this.toActivityEvent(event));
+    this.restoreTeamPending = true;
+    this.liveAfterSnapshot = false;
+    this.agentEmitter.fire(this.currentAgents);
+  }
+
+  private isAgentsSnapshot(value: unknown): value is { agents: HostAgentSnapshot[]; activity: HostActivityEvent[] } {
+    if (!value || typeof value !== 'object') {
+      return false;
+    }
+    const candidate = value as { agents?: unknown; activity?: unknown };
+    return Array.isArray(candidate.agents)
+      && candidate.agents.every(item => this.isAgentSnapshot(item))
+      && Array.isArray(candidate.activity)
+      && candidate.activity.every(item => this.isActivityEvent(item));
+  }
+
+  private isActivityEvent(value: unknown): value is HostActivityEvent {
+    if (!value || typeof value !== 'object') {
+      return false;
+    }
+    const candidate = value as Partial<HostActivityEvent> & { tool?: string | null };
+    return typeof candidate.agentId === 'string'
+      && typeof candidate.occurredAt === 'string'
+      && typeof candidate.kind === 'string'
+      && typeof candidate.status === 'string'
+      && (candidate.tool === undefined || candidate.tool === null || typeof candidate.tool === 'string');
+  }
+
+  private toActivityEvent(value: HostActivityEvent & { tool?: string | null }): HostActivityEvent {
+    const event: HostActivityEvent = {
+      agentId: value.agentId,
+      occurredAt: value.occurredAt,
+      kind: value.kind,
+      status: value.status
+    };
+    if (typeof value.tool === 'string') {
+      event.tool = value.tool;
+    }
+    return event;
   }
 
   private isAgentSnapshot(value: unknown): value is HostAgentSnapshot {

@@ -35,6 +35,38 @@ public sealed class AgentMonitorInteractionTests
     }
 
     [Fact]
+    public async Task FallbackIdleCanDowngradeHookWorkingWhenStopHookIsMissing()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var precise = Activity("generation-1", AgentStatus.Working) with
+        {
+            OccurredAt = now,
+        };
+        var fallback = Activity("generation-1", AgentStatus.Idle) with
+        {
+            OccurredAt = now.AddMinutes(3),
+            IsFallback = true,
+        };
+        var monitor = new AgentMonitor(
+            new AgentRegistry(),
+            new StubEventSource([precise, fallback]));
+        var snapshots = new List<AgentSnapshot>();
+
+        await monitor.RunAsync(
+            (snapshot, _) =>
+            {
+                snapshots.Add(snapshot);
+                return ValueTask.CompletedTask;
+            },
+            CancellationToken.None);
+
+        Assert.Equal(2, snapshots.Count);
+        Assert.Equal(AgentStatus.Working, snapshots[0].Status);
+        Assert.Equal(AgentStatus.Idle, snapshots[1].Status);
+        Assert.True(snapshots[1].IsFallback);
+    }
+
+    [Fact]
     public async Task FreshTranscriptActivityCanResumeWorkingAfterNonTerminalHookState()
     {
         var now = DateTimeOffset.UtcNow;
@@ -127,6 +159,71 @@ public sealed class AgentMonitorInteractionTests
         Assert.Equal(AgentStatus.Completed, snapshots[0].Status);
         Assert.Equal(AgentStatus.Working, snapshots[1].Status);
         Assert.True(snapshots[1].IsFallback);
+    }
+
+    [Fact]
+    public async Task TranscriptFallbackDoesNotResurrectOfflineAgentBoundToTheSameWindow()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var offline = Activity("generation-1", AgentStatus.Offline) with
+        {
+            OccurredAt = now,
+            WindowId = "cursor-window-dead",
+        };
+        var fallback = Activity("generation-2", AgentStatus.Working) with
+        {
+            OccurredAt = now.AddSeconds(5),
+            IsFallback = true,
+        };
+        var monitor = new AgentMonitor(
+            new AgentRegistry(),
+            new StubEventSource([offline, fallback]));
+        var snapshots = new List<AgentSnapshot>();
+
+        await monitor.RunAsync(
+            (snapshot, _) =>
+            {
+                snapshots.Add(snapshot);
+                return ValueTask.CompletedTask;
+            },
+            CancellationToken.None);
+
+        var only = Assert.Single(snapshots);
+        Assert.Equal(AgentStatus.Offline, only.Status);
+        Assert.False(only.IsFallback);
+    }
+
+    [Fact]
+    public async Task TranscriptFallbackWithANewWindowCanResumeAfterOffline()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var offline = Activity("generation-1", AgentStatus.Offline) with
+        {
+            OccurredAt = now,
+            WindowId = "cursor-window-dead",
+        };
+        var fallback = Activity("generation-2", AgentStatus.Working) with
+        {
+            OccurredAt = now.AddSeconds(5),
+            IsFallback = true,
+            WindowId = "cursor-window-live",
+        };
+        var monitor = new AgentMonitor(
+            new AgentRegistry(),
+            new StubEventSource([offline, fallback]));
+        var snapshots = new List<AgentSnapshot>();
+
+        await monitor.RunAsync(
+            (snapshot, _) =>
+            {
+                snapshots.Add(snapshot);
+                return ValueTask.CompletedTask;
+            },
+            CancellationToken.None);
+
+        Assert.Equal(2, snapshots.Count);
+        Assert.Equal(AgentStatus.Working, snapshots[1].Status);
+        Assert.Equal("cursor-window-live", snapshots[1].WindowId);
     }
 
     [Fact]

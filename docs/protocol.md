@@ -59,7 +59,7 @@ ID hlavní konverzace i podagenta je stabilní napříč aktualizacemi. Nový to
 - `agent.changed` – vznikl nebo se změnil agent,
 - `agent.removed` – lifecycle projekce agenta skončil a UI jej má nechat odejít; payload obsahuje `id`,
 - `usage.changed` – perzistentní lokální agregace `total`, `byWorkspace`, `byModel`, `byWorkspaceModel` a `byDay`,
-- `agents.snapshot` – úplný aktuální stav, plánováno,
+- `agents.snapshot` – implementováno; úplný stav po startu hostu, ještě před živými `agent.changed`. Payload je `{ "agents": AgentSnapshot[], "activity": AgentActivityEvent[] }` a smí být prázdný. `activity` nese jen `agentId`, `occurredAt`, `kind`, `status` a volitelné `tool`; prompt, reasoning, těla souborů ani výstup nástroje sem nepatří.
 - `host.error` – strukturovaná chyba, plánováno.
 
 ## Kompatibilita

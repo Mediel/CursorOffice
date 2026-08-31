@@ -53,7 +53,7 @@ export class OfficePanel {
       undefined,
       this.disposables
     );
-    host.onDidChangeAgents(() => this.sendBootstrap(), undefined, this.disposables);
+    host.onDidChangeAgents(() => this.sendBootstrap('agents'), undefined, this.disposables);
     host.onDidChangeUsage(() => this.sendBootstrap(), undefined, this.disposables);
     windowPresence.onDidChangeWindows(() => this.sendBootstrap(), undefined, this.disposables);
   }
@@ -106,7 +106,7 @@ export class OfficePanel {
 
   private onMessage(message: WebviewMessage): void {
     if (message.type === 'webview.ready') {
-      this.sendBootstrap();
+      this.sendBootstrap('webview.ready');
       return;
     }
     if (message.type === 'office.settings.selectLogo') {
@@ -130,7 +130,7 @@ export class OfficePanel {
     }
   }
 
-  private sendBootstrap(): void {
+  private sendBootstrap(cause: 'webview.ready' | 'agents' = 'agents'): void {
     const preferences = readOfficePreferences();
     const officeName = readOfficeName();
     const configuredName = vscode.workspace
@@ -154,6 +154,8 @@ export class OfficePanel {
         },
         agents: this.host.currentAgents,
         usage: this.host.currentUsage,
+        activity: this.host.currentActivity,
+        restoreTeam: this.host.restoreTeamFor(cause),
         currentWindow: this.windowPresence.currentWindow,
         windows: this.windowPresence.activeWindows,
         settings

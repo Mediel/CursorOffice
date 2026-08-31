@@ -1,4 +1,5 @@
 import type {
+  AgentActivityEvent,
   AgentSnapshot,
   CursorWindowSnapshot,
   OfficeBootstrap,
@@ -31,6 +32,7 @@ export class OfficeHud {
   private readonly brandLogo: HTMLImageElement;
   private readonly brandName: HTMLElement;
   private readonly agentStates = new Map<string, AgentSnapshot>();
+  private activityEvents: AgentActivityEvent[] = [];
   private ownerState: OfficeOwner | undefined;
   private usageState: UsageLedgerSnapshot | undefined;
   private selectedId: string | undefined;
@@ -153,6 +155,9 @@ export class OfficeHud {
     if (bootstrap.settings) {
       this.applyRolePalette(bootstrap.settings);
       this.applyDisplayPreferences(bootstrap.settings);
+    }
+    if (bootstrap.activity !== undefined) {
+      this.activityEvents = bootstrap.activity;
     }
     this.updateBrand(bootstrap.brand);
     this.updateWindowFilter(bootstrap.windows, bootstrap.currentWindow, bootstrap.agents);
@@ -531,12 +536,41 @@ export class OfficeHud {
           <span><small>${t('cursorWindowLabel')}</small><strong title="${escapeHtml(agent.windowId ?? t('notDetected'))}">${escapeHtml(agent.windowLabel ?? t('notDetected'))}</strong></span>
           ${workspaceUsageFact}
         </div>
+        ${this.renderActivityTimeline(agent.id)}
         <div class="detail-note">${escapeHtml(metadata || t('positionNote'))}</div>`;
     }
 
     this.detailPanel.hidden = false;
     requireElement<HTMLButtonElement>(this.detailPanel, '.detail-close')
       .addEventListener('click', () => this.onSelectionRequested(), { once: true });
+  }
+
+  private renderActivityTimeline(agentId: string): string {
+    if (!this.display.showActivity) {
+      return '';
+    }
+    const events = this.activityEvents
+      .filter(event => event.agentId === agentId)
+      .slice()
+      .sort((left, right) => Date.parse(left.occurredAt) - Date.parse(right.occurredAt));
+    if (events.length === 0) {
+      return `<div class="detail-timeline">
+        <span class="detail-timeline-title">${t('activityTimeline')}</span>
+        <p class="detail-timeline-empty">${t('activityTimelineEmpty')}</p>
+      </div>`;
+    }
+    const rows = events.map(event => {
+      const tool = event.tool?.trim();
+      return `<li>
+        <time>${escapeHtml(formatActivityTime(event.occurredAt))}</time>
+        <span>${escapeHtml(activityKindLabel(event.kind))}${tool ? ` · ${escapeHtml(tool)}` : ''}</span>
+        <small>${escapeHtml(statusLabel(event.status))}</small>
+      </li>`;
+    }).join('');
+    return `<div class="detail-timeline">
+      <span class="detail-timeline-title">${t('activityTimeline')}</span>
+      <ol class="detail-timeline-list">${rows}</ol>
+    </div>`;
   }
 
   private renderUsageDetails(): void {
@@ -764,6 +798,31 @@ function tokenUnit(): string {
 
 function formatPercent(value: number): string {
   return `${new Intl.NumberFormat(localeTag(), { maximumFractionDigits: 1 }).format(value)}%`;
+}
+
+function formatActivityTime(occurredAt: string): string {
+  const date = new Date(occurredAt);
+  if (Number.isNaN(date.getTime())) {
+    return occurredAt;
+  }
+  return new Intl.DateTimeFormat(localeTag(), {
+    month: 'numeric',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit'
+  }).format(date);
+}
+
+function activityKindLabel(kind: string): string {
+  switch (kind) {
+    case 'userPrompt': return t('activityKindUserPrompt');
+    case 'agentResponse': return t('activityKindAgentResponse');
+    case 'delegationStarted': return t('activityKindDelegationStarted');
+    case 'handoffCompleted': return t('activityKindHandoffCompleted');
+    case 'tool': return t('activityKindTool');
+    case 'status': return t('activityKindStatus');
+    default: return kind;
+  }
 }
 
 function formatManagerCount(value: number): string {

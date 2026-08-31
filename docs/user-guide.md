@@ -154,7 +154,7 @@ Jedna generace se započítá pouze jednou. Pokud runtime posílá průběžné 
 
 - Subagent se pokusí předat výsledek seniorovi, chvíli zůstane ve volném režimu a potom odejde přes východ.
 - Hlavní chat může po dokončení také odejít, ale pouhá neaktivita jej běžně drží výrazně déle.
-- Zavřené Cursor okno ztratí heartbeat; jeho manažer následně odejde.
+- Zavřené Cursor okno ztratí heartbeat; jeho manažer odejde a chaty i subagenty tohoto okna host přepne do `offline` a po 28 / 12 sekundách je odstraní.
 - Nová aktivita stejné identity může odchod zrušit nebo postavu znovu přivést.
 
 Přesná současná časování jsou v části [Neaktivita, dokončení a odchod](behavior-model.md#neaktivita-dokončení-a-odchod).
@@ -202,6 +202,7 @@ Cursor Office nepoužívá Cursor Cloud API ani vlastní síťový server. Loká
 | `%LOCALAPPDATA%/CursorOffice/windows-v1` | Heartbeat živých Cursor oken |
 | `%LOCALAPPDATA%/CursorOffice/conversation-windows-v1` | Hashovaná vazba konverzace na okno |
 | `%LOCALAPPDATA%/CursorOffice/usage-ledger.json` | Přesně oznámené lokální tokenové agregace |
+| `%LOCALAPPDATA%/CursorOffice/activity-log.ndjson` | Append-only poslední snapshoty agentů a privacy-safe timeline (`kind` / `tool` / čas / `status`) |
 | `~/.cursor/projects/.../agent-transcripts` | Pouze metadata souborů pro fallback; obsah se neotevírá |
 | `%APPDATA%/Cursor/User/globalStorage/state.vscdb` | Read-only dotaz pouze na hlavičku a název chatu |
 

@@ -25,16 +25,26 @@ public sealed class AgentMonitor(AgentRegistry registry, IAgentEventSource event
                 // Hooks own terminal lifecycle. A stale transcript must not undo
                 // completed, offline or error. A newer transcript write is evidence
                 // of a later generation and may resume working after stop.
-                if (activity.Status != AgentStatus.Working)
-                {
-                    continue;
-                }
+                // Non-terminal hook Working may still go idle when the transcript
+                // is silent; otherwise a missing stop hook freezes the office.
                 if (previous.Status is AgentStatus.Completed
-                        or AgentStatus.Offline
-                        or AgentStatus.Error
-                    && activity.OccurredAt <= previous.LastActivityAt)
+                    or AgentStatus.Offline
+                    or AgentStatus.Error)
                 {
-                    continue;
+                    if (activity.Status != AgentStatus.Working
+                        || activity.OccurredAt <= previous.LastActivityAt)
+                    {
+                        continue;
+                    }
+
+                    // Window-death and sessionEnd mark offline without a later hook.
+                    // Transcript metadata has no window id and must not undo that.
+                    if (previous.Status == AgentStatus.Offline
+                        && (string.IsNullOrWhiteSpace(activity.WindowId)
+                            || string.Equals(activity.WindowId, previous.WindowId, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        continue;
+                    }
                 }
             }
             var interactionKind = activity.InteractionKind;

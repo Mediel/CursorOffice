@@ -4,6 +4,7 @@ using CursorOffice.Application.Agents;
 using CursorOffice.Core.Agents;
 using CursorOffice.Host.Protocol;
 using CursorOffice.Infrastructure;
+using CursorOffice.Infrastructure.Activity;
 using CursorOffice.Infrastructure.Cursor;
 using CursorOffice.Infrastructure.Usage;
 
@@ -13,6 +14,7 @@ var jsonOptions = new JsonSerializerOptions(JsonSerializerDefaults.Web)
 };
 
 var registry = new AgentRegistry();
+var windowPresence = new CursorWindowPresenceDirectory();
 var eventSource = new CursorConversationTitleEventSource(
     new CompositeAgentEventSource(
         new CursorHooksAgentEventSource(),
@@ -20,6 +22,7 @@ var eventSource = new CursorConversationTitleEventSource(
     new CursorComposerHeaderStore());
 var monitor = new AgentMonitor(registry, eventSource);
 var usageLedger = new LocalUsageLedger();
+var activityLog = new LocalActivityLog();
 using var outputGate = new SemaphoreSlim(1, 1);
 using var shutdown = new CancellationTokenSource();
 Console.CancelKeyPress += (_, eventArgs) =>
@@ -29,10 +32,37 @@ Console.CancelKeyPress += (_, eventArgs) =>
 };
 
 await WriteAsync(
-    ProtocolEnvelope<object>.Create("host.ready", new { hostVersion = "0.1.30" }),
+    ProtocolEnvelope<object>.Create("host.ready", new { hostVersion = "0.1.49" }),
     shutdown.Token);
 await WriteAsync(
     ProtocolEnvelope<CursorOffice.Core.Usage.UsageLedgerSnapshot>.Create("usage.changed", usageLedger.GetSnapshot()),
+    shutdown.Token);
+
+foreach (var agent in activityLog.GetLatestAgents())
+{
+    registry.Upsert(agent);
+}
+
+foreach (var agent in RetireOrphanedWindowAgents())
+{
+    registry.Upsert(agent);
+    activityLog.Append(agent, AgentActivityEvent.FromSnapshot(agent));
+}
+
+foreach (var agent in DowngradeStaleWorkingAgents())
+{
+    registry.Upsert(agent);
+    activityLog.Append(agent, AgentActivityEvent.FromSnapshot(agent));
+}
+
+_ = RemoveExpiredAgents();
+
+await WriteAsync(
+    ProtocolEnvelope<AgentsSnapshot>.Create(
+        "agents.snapshot",
+        new AgentsSnapshot(
+            registry.GetSnapshot(),
+            activityLog.GetTimeline(LocalActivityLog.DefaultMaximumLines))),
     shutdown.Token);
 
 var monitorTask = monitor.RunAsync(
@@ -48,6 +78,7 @@ async ValueTask OnAgentChangedAsync(AgentSnapshot agent, CancellationToken cance
     await WriteAsync(
         ProtocolEnvelope<AgentSnapshot>.Create("agent.changed", agent),
         cancellationToken);
+    activityLog.Append(agent, AgentActivityEvent.FromSnapshot(agent));
     if (usageLedger.TryRecord(agent))
     {
         await WriteAsync(
@@ -75,31 +106,75 @@ async Task RunCleanupAsync(CancellationToken cancellationToken)
     while (!cancellationToken.IsCancellationRequested)
     {
         await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
-        var now = DateTimeOffset.UtcNow;
-        foreach (var agent in registry.GetSnapshot())
+        foreach (var agent in RetireOrphanedWindowAgents())
         {
-            var retention = agent.Status switch
-            {
-                AgentStatus.Offline when agent.Kind == AgentKind.Subagent => TimeSpan.FromSeconds(12),
-                AgentStatus.Offline => TimeSpan.FromSeconds(28),
-                AgentStatus.Completed when agent.Kind == AgentKind.Subagent => TimeSpan.FromMinutes(2),
-                AgentStatus.Completed => TimeSpan.FromMinutes(20),
-                AgentStatus.Error when agent.Kind == AgentKind.Subagent => TimeSpan.FromMinutes(2),
-                AgentStatus.Idle when agent.Kind == AgentKind.Subagent => TimeSpan.FromMinutes(2),
-                AgentStatus.Idle => TimeSpan.FromMinutes(30),
-                AgentStatus.Unknown => TimeSpan.FromMinutes(10),
-                _ => Timeout.InfiniteTimeSpan,
-            };
-            if (retention == Timeout.InfiniteTimeSpan || now - agent.LastActivityAt < retention)
-            {
-                continue;
-            }
-            if (registry.Remove(agent.Id))
-            {
-                await WriteAsync(
-                    ProtocolEnvelope<object>.Create("agent.removed", new { id = agent.Id }),
-                    cancellationToken);
-            }
+            await OnAgentChangedAsync(agent, cancellationToken);
+        }
+
+        foreach (var agent in DowngradeStaleWorkingAgents())
+        {
+            await OnAgentChangedAsync(agent, cancellationToken);
+        }
+
+        foreach (var id in RemoveExpiredAgents())
+        {
+            await WriteAsync(
+                ProtocolEnvelope<object>.Create("agent.removed", new { id }),
+                cancellationToken);
         }
     }
+}
+
+IReadOnlyList<AgentSnapshot> RetireOrphanedWindowAgents()
+{
+    var liveWindowIds = windowPresence.TryReadLiveWindowIds(DateTimeOffset.UtcNow);
+    if (liveWindowIds is null || liveWindowIds.Count == 0)
+    {
+        return [];
+    }
+
+    var retired = OrphanedWindowAgentRetirer.CreateOfflineSnapshots(
+        registry.GetSnapshot(),
+        liveWindowIds,
+        DateTimeOffset.UtcNow);
+    foreach (var agent in retired)
+    {
+        registry.Upsert(agent);
+    }
+
+    return retired;
+}
+
+IReadOnlyList<AgentSnapshot> DowngradeStaleWorkingAgents()
+{
+    var idle = AgentLifecycle.CreateIdleSnapshotsForStaleWork(
+        registry.GetSnapshot(),
+        DateTimeOffset.UtcNow);
+    foreach (var agent in idle)
+    {
+        registry.Upsert(agent);
+    }
+
+    return idle;
+}
+
+List<string> RemoveExpiredAgents()
+{
+    var now = DateTimeOffset.UtcNow;
+    var removed = new List<string>();
+    foreach (var agent in registry.GetSnapshot())
+    {
+        if (!AgentLifecycle.IsExpired(agent, now))
+        {
+            continue;
+        }
+
+        if (registry.Remove(agent.Id))
+        {
+            activityLog.AppendRemoval(agent.Id);
+            removed.Add(agent.Id);
+        }
+    }
+
+    return removed;
 }

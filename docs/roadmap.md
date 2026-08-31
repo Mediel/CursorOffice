@@ -32,14 +32,14 @@
 - [x] ověřit end-to-end převod hook → lokální spool → host → `agent.changed`,
 - [x] rozlišit souběžné instance podagentů podle lokálních metadat transcript souborů,
 - [x] normalizovat stavy agentů a hierarchii primary/subagent,
-- [ ] ukládat lokální historii,
+- [x] ukládat lokální historii,
 - [x] zachovat pozici majitele při aktualizaci projekce a obnově Webview,
 - [x] řízeně odvádět a odstraňovat ukončené agenty pomocí lifecycle TTL,
 - [x] ukládat přesně oznámenou tokenovou spotřebu po workspace/modelu/dni bez cloud API,
 - [x] převést chat, delegaci a handoff na frontované sociální interakce postav bez čtení obsahu konverzace,
 - [x] distribuovat hook události všem současným Cursor oknům bez závodu nad jedním spool souborem,
 - [x] zdokumentovat uživatelské ovládání, organizační model, lifecycle, časování a diagnostiku,
-- [ ] obnovit lokální historii po úplném restartu extension.
+- [x] obnovit lokální historii po úplném restartu extension.
 
 ## M3 – řízení agentů
 

@@ -823,6 +823,70 @@ body {
   line-height: 1.45;
 }
 
+.detail-timeline {
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.detail-timeline-title {
+  display: block;
+  margin-bottom: 7px;
+  color: #58717d;
+  font-size: 7px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.detail-timeline-empty {
+  margin: 0;
+  color: #667f8a;
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.detail-timeline-list {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.detail-timeline-list li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: baseline;
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.065);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.detail-timeline-list time {
+  color: #6f8894;
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.detail-timeline-list span {
+  overflow: hidden;
+  color: #c5d5dc;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detail-timeline-list small {
+  color: #7d96a1;
+  font-size: 8px;
+  white-space: nowrap;
+}
+
 .detail-panel.usage-details {
   width: min(780px, calc(100% - 310px));
   max-height: min(620px, calc(100% - 120px));

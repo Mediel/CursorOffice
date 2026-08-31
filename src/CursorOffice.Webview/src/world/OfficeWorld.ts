@@ -364,7 +364,7 @@ export class OfficeWorld {
       };
     }
     this.updateOwner(bootstrap.owner);
-    this.updateAgents(bootstrap.agents);
+    this.updateAgents(bootstrap.agents, bootstrap.restoreTeam === true);
   }
 
   public setWindowFilter(windowId: string): void {
@@ -766,7 +766,7 @@ export class OfficeWorld {
     this.scene.add(this.owner.group);
   }
 
-  private updateAgents(snapshots: AgentSnapshot[]): void {
+  private updateAgents(snapshots: AgentSnapshot[], restoreTeam = false): void {
     const now = performance.now() / 1000;
     this.reconcileReopenedManagers(snapshots);
     const activeIds = new Set(snapshots.map(agent => agent.id));
@@ -843,6 +843,7 @@ export class OfficeWorld {
       const previousStatus = behavior?.status;
       const hasFreshActivity = !behavior || activityAt > behavior.lastActivityAt + 1;
       let controller = this.agents.get(agent.id);
+      const restorePlacement = restoreTeam && !controller;
       if (!controller) {
         if (behavior?.phase === 'departed' && !hasFreshActivity) {
           return;
@@ -857,7 +858,9 @@ export class OfficeWorld {
           visualRole: visualRoleFor(agent),
           appearanceKey: appearanceKeyFor(agent)
         });
-        controller.setPosition(spawnPoint(index));
+        if (!restorePlacement) {
+          controller.setPosition(spawnPoint(index));
+        }
         this.agents.set(agent.id, controller);
         this.scene.add(controller.group);
         behavior = {
@@ -876,9 +879,10 @@ export class OfficeWorld {
           lastActivityAt: activityAt,
           departAt: Number.POSITIVE_INFINITY,
           removeAt: Number.POSITIVE_INFINITY,
-          celebrationPending: agent.status === 'completed',
+          celebrationPending: restorePlacement ? false : agent.status === 'completed',
           celebrationStarted: false,
-          phase: 'present'
+          phase: 'present',
+          lastInteractionKey: restorePlacement ? interactionKeyFor(agent, now) : undefined
         };
         this.agentBehaviors.set(agent.id, behavior);
       }
@@ -949,10 +953,14 @@ export class OfficeWorld {
         behavior.nextMoveAt = Number.POSITIVE_INFINITY;
       }
 
-      if (shouldRetarget) {
+      if (restorePlacement) {
+        this.assignStatusDestination(agent.id, controller, behavior, { walk: false });
+      } else if (shouldRetarget) {
         this.assignStatusDestination(agent.id, controller, behavior);
       }
-      this.queueSocialInteraction(agent, behavior, now);
+      if (!restorePlacement) {
+        this.queueSocialInteraction(agent, behavior, now);
+      }
     });
     this.updateAgentVisibility();
   }
@@ -1045,7 +1053,8 @@ export class OfficeWorld {
   private assignStatusDestination(
     id: string,
     controller: CharacterController,
-    behavior: AgentBehavior
+    behavior: AgentBehavior,
+    options?: { walk?: boolean }
   ): void {
     if (behavior.coffeeBreak) {
       this.cancelCoffeeBreak(id, controller, behavior, this.sceneSeconds);
@@ -1085,7 +1094,12 @@ export class OfficeWorld {
       destination.facing,
       celebrateStanding || attentionRequested ? undefined : destination.visualOffset
     );
-    controller.setPath(this.planRoute(controller.group.position, destination.position, id));
+    if (options?.walk === false) {
+      controller.setPosition(destination.position.clone());
+      controller.stopMovement();
+    } else {
+      controller.setPath(this.planRoute(controller.group.position, destination.position, id));
+    }
     if (isLeisureBehavior(behavior) && !attentionRequested) {
       behavior.pendingDwellPoiId = destination.poiId;
       behavior.nextMoveAt = Number.POSITIVE_INFINITY;
@@ -3243,6 +3257,15 @@ function isLeisureBehavior(behavior: AgentBehavior): boolean {
 
 function requestsAttention(id: string, status: AgentSnapshot['status']): boolean {
   return status === 'waitingForUser' && !id.startsWith('cursor-window-manager-');
+}
+
+function interactionKeyFor(snapshot: AgentSnapshot, seconds: number): string {
+  const interaction = snapshot.interactionKind;
+  const interactionGroup = interaction === 'userPrompt' || interaction === 'agentResponse'
+    ? 'owner-conversation'
+    : interaction ?? 'restore';
+  const occurrence = snapshot.generationId ?? snapshot.lastActivityAt ?? seconds.toFixed(3);
+  return `${interactionGroup}:${snapshot.id}:${occurrence}`;
 }
 
 function isRetiringSubagent(
