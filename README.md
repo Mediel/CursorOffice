@@ -162,7 +162,7 @@ See the full [architecture document](docs/architecture.md) and [local protocol](
 
 - Windows with Cursor IDE
 - .NET SDK 10.0.400 or a newer compatible feature band
-- Node.js 22.12 or newer
+- Node.js 22.13 or newer
 - pnpm 11
 - Visual Studio is optional, but supported for the combined solution
 

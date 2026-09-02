@@ -3,7 +3,7 @@
 ## Toolchain
 
 - .NET SDK 10.0.400 or newer compatible feature band
-- Node.js 22.12 or newer
+- Node.js 22.13 or newer
 - pnpm 11
 - Optional: Visual Studio with .NET and Node.js/TypeScript workloads
 
