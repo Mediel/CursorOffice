@@ -108,7 +108,10 @@ export class OfficeHud {
             <span><i class="legend-dot status-dot" style="--legend-color: ${colorToCss(statusColors.completed)}"></i>${t('statusCompleted')}</span>
             <span><i class="legend-dot status-dot" style="--legend-color: ${colorToCss(statusColors.offline)}"></i>${t('statusOffline')}</span>
           </span>
-          <span class="footer-note">${t('footerControls')}</span>
+          <span class="footer-meta">
+            <span class="footer-note">${t('footerControls')}</span>
+            <span class="footer-author">Author: Martin Erdt - MedielSoft</span>
+          </span>
         </footer>
 
         <section class="detail-panel glass-card" aria-live="polite" hidden></section>

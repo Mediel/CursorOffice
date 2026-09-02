@@ -638,7 +638,8 @@ body {
 
 .legend-group,
 .legend-group > span,
-.footer-note {
+.footer-note,
+.footer-author {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -683,12 +684,26 @@ body {
   background: rgba(210, 237, 245, 0.12);
 }
 
-.footer-note {
+.footer-meta {
   min-width: 0;
-  overflow: hidden;
   margin-left: auto;
+  display: flex;
+  align-items: flex-end;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.footer-note {
+  max-width: 100%;
+  overflow: hidden;
   color: #617984;
   text-overflow: ellipsis;
+}
+
+.footer-author {
+  color: #78909b;
+  font-size: 7px;
+  letter-spacing: 0.025em;
 }
 
 .detail-panel {
@@ -1206,6 +1221,10 @@ body {
 
   .footer-note {
     display: none !important;
+  }
+
+  .footer-meta {
+    width: 100%;
   }
 }
 
