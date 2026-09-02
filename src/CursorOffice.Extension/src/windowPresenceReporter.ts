@@ -164,7 +164,7 @@ export class WindowPresenceReporter implements vscode.Disposable {
   private directoryPath(): string {
     const localAppData = process.env.LOCALAPPDATA;
     if (!localAppData) {
-      throw new Error('Proměnná LOCALAPPDATA není dostupná.');
+      throw new Error('The LOCALAPPDATA environment variable is unavailable.');
     }
     return join(localAppData, 'CursorOffice', 'windows-v1');
   }

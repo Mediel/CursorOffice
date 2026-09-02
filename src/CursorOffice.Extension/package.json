@@ -5,7 +5,7 @@
   "version": "0.1.49",
   "private": true,
   "publisher": "cursor-office",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/Mediel/CursorOffice.git"
@@ -55,7 +55,7 @@
           "default": "",
           "scope": "window",
           "order": 10,
-          "markdownDescription": "Přezdívka majitele zobrazená v kanceláři. Prázdná hodnota použije lokální uživatelské jméno. / Owner nickname shown in the office. Empty uses the local user name."
+          "markdownDescription": "Owner nickname shown in the office. Leave empty to use the local user name."
         },
         "cursorOffice.ownerAppearance.hairStyle": {
           "type": "string",
@@ -72,21 +72,21 @@
             "bald"
           ],
           "enumItemLabels": [
-            "Upravená patka",
-            "Pěšinka",
-            "Krátké",
-            "Ježek",
+            "Executive",
+            "Side part",
+            "Short",
+            "Buzz cut",
             "Bob",
-            "Dlouhé",
-            "Kudrnaté",
-            "Drdol",
-            "Číro",
-            "Pleš"
+            "Long",
+            "Curly",
+            "Bun",
+            "Mohawk",
+            "Bald"
           ],
           "default": "executive",
           "scope": "application",
           "order": 11,
-          "markdownDescription": "Účes postavy majitele. / Office owner hairstyle."
+          "markdownDescription": "Office owner hairstyle."
         },
         "cursorOffice.ownerAppearance.hairColor": {
           "type": "string",
@@ -95,7 +95,7 @@
           "pattern": "^#[0-9a-fA-F]{6}$",
           "scope": "application",
           "order": 12,
-          "markdownDescription": "Barva vlasů a vousů majitele. / Owner hair and facial-hair color."
+          "markdownDescription": "Owner hair and facial-hair color."
         },
         "cursorOffice.ownerAppearance.skinColor": {
           "type": "string",
@@ -104,7 +104,7 @@
           "pattern": "^#[0-9a-fA-F]{6}$",
           "scope": "application",
           "order": 13,
-          "markdownDescription": "Odstín pokožky majitele. / Owner skin tone."
+          "markdownDescription": "Owner skin tone."
         },
         "cursorOffice.ownerAppearance.facialHair": {
           "type": "string",
@@ -120,20 +120,20 @@
             "sideburns"
           ],
           "enumItemLabels": [
-            "Bez vousů",
-            "Strnisko",
-            "Knír",
-            "Muška",
-            "Kozí bradka",
-            "Kotva",
-            "Plnovous",
-            "Licousy",
-            "Kotlety"
+            "None",
+            "Stubble",
+            "Mustache",
+            "Soul patch",
+            "Goatee",
+            "Anchor",
+            "Full beard",
+            "Mutton chops",
+            "Sideburns"
           ],
           "default": "none",
           "scope": "application",
           "order": 14,
-          "markdownDescription": "Vousy majitele. / Owner facial-hair style."
+          "markdownDescription": "Owner facial-hair style."
         },
         "cursorOffice.ownerAppearance.eyewear": {
           "type": "string",
@@ -143,28 +143,28 @@
             "sunglasses"
           ],
           "enumItemLabels": [
-            "Bez brýlí",
-            "Dioptrické brýle",
-            "Sluneční brýle"
+            "None",
+            "Glasses",
+            "Sunglasses"
           ],
           "default": "none",
           "scope": "application",
           "order": 15,
-          "markdownDescription": "Brýle majitele. / Owner eyewear."
+          "markdownDescription": "Owner eyewear."
         },
         "cursorOffice.officeName": {
           "type": "string",
           "default": "Cursor Office",
           "scope": "application",
           "order": 20,
-          "markdownDescription": "Vlastní název zobrazený v záhlaví kanceláře a na kartě editoru. / Custom name shown in the office header and editor tab."
+          "markdownDescription": "Custom name shown in the office header and editor tab."
         },
         "cursorOffice.officeLogoPath": {
           "type": "string",
           "default": "",
           "scope": "application",
           "order": 22,
-          "markdownDescription": "Absolutní cesta k vlastnímu PNG, JPEG, WebP nebo GIF logu (max. 2 MB). Prázdná nebo neplatná cesta použije iniciály názvu. Lze vybrat příkazem `Cursor Office: Select Office Logo`. / Absolute path to a custom logo; empty or invalid uses name initials."
+          "markdownDescription": "Absolute path to a custom PNG, JPEG, WebP, or GIF logo (max. 2 MB). Empty or invalid paths use the office-name initials. You can also use `Cursor Office: Select Office Logo`."
         },
         "cursorOffice.language": {
           "type": "string",
@@ -174,82 +174,82 @@
             "en"
           ],
           "enumItemLabels": [
-            "Automaticky (Windows)",
-            "Čeština",
+            "Automatic (Windows)",
+            "Czech",
             "English"
           ],
           "default": "auto",
           "scope": "application",
           "order": 30,
-          "markdownDescription": "Jazyk rozhraní kanceláře. Automatika použije češtinu pro české Windows; angličtinu pro anglické i všechny ostatní jazyky. / Office UI language. Auto uses Czech for Czech Windows and English for English or any unsupported language."
+          "markdownDescription": "Office UI language. Automatic mode uses Czech on Czech Windows and English for English or any unsupported language."
         },
         "cursorOffice.shirtColors.owner": {
           "type": "string",
           "format": "color-hex",
           "default": "#32c477",
           "pattern": "^#[0-9a-fA-F]{6}$",
-          "patternErrorMessage": "Použijte barvu ve formátu #RRGGBB.",
+          "patternErrorMessage": "Use a color in #RRGGBB format.",
           "scope": "application",
           "order": 40,
-          "markdownDescription": "Barva košile majitele. / Owner shirt color."
+          "markdownDescription": "Owner shirt color."
         },
         "cursorOffice.shirtColors.manager": {
           "type": "string",
           "format": "color-hex",
           "default": "#00c7c7",
           "pattern": "^#[0-9a-fA-F]{6}$",
-          "patternErrorMessage": "Použijte barvu ve formátu #RRGGBB.",
+          "patternErrorMessage": "Use a color in #RRGGBB format.",
           "scope": "application",
           "order": 50,
-          "markdownDescription": "Barva košile manažera Cursor okna. / Cursor window manager shirt color."
+          "markdownDescription": "Cursor window manager shirt color."
         },
         "cursorOffice.shirtColors.chat": {
           "type": "string",
           "format": "color-hex",
           "default": "#2f6bff",
           "pattern": "^#[0-9a-fA-F]{6}$",
-          "patternErrorMessage": "Použijte barvu ve formátu #RRGGBB.",
+          "patternErrorMessage": "Use a color in #RRGGBB format.",
           "scope": "application",
           "order": 60,
-          "markdownDescription": "Barva košile hlavního chatu nebo seniora. / Main chat or senior shirt color."
+          "markdownDescription": "Main chat or senior-agent shirt color."
         },
         "cursorOffice.shirtColors.subagent": {
           "type": "string",
           "format": "color-hex",
           "default": "#b084ff",
           "pattern": "^#[0-9a-fA-F]{6}$",
-          "patternErrorMessage": "Použijte barvu ve formátu #RRGGBB.",
+          "patternErrorMessage": "Use a color in #RRGGBB format.",
           "scope": "application",
           "order": 70,
-          "markdownDescription": "Barva košile subagenta nebo pracovníka. / Subagent or worker shirt color."
+          "markdownDescription": "Subagent or worker shirt color."
         },
         "cursorOffice.hud.showModel": {
           "type": "boolean",
           "default": true,
           "scope": "application",
           "order": 80,
-          "markdownDescription": "Zobrazit model z Cursor hooku v seznamu, inspectoru a 3D štítku. Výchozí zapnuto. / Show the hook model in the list, inspector, and 3D label. On by default."
+          "markdownDescription": "Show the Hook-provided model in the list, inspector, and 3D label. Enabled by default."
         },
         "cursorOffice.hud.showTokens": {
           "type": "boolean",
           "default": true,
           "scope": "application",
           "order": 81,
-          "markdownDescription": "Zobrazit doloženou generační spotřebu a zaplnění kontextového okna. Chybějící údaje se nevydávají za nulu. / Show evidenced generation usage and context-window fill. Missing values are never shown as zero."
+          "markdownDescription": "Show evidenced generation usage and context-window fill. Missing values are never shown as zero."
         },
         "cursorOffice.hud.showActivity": {
           "type": "boolean",
           "default": true,
           "scope": "application",
           "order": 82,
-          "markdownDescription": "Zobrazit aktuální činnost agenta (nástroj, analýza, soubor, úkol podagenta). Text promptu se nezobrazuje. / Show the agent’s current activity (tool, thought, file, subagent task). Prompt text is never shown."
+          "markdownDescription": "Show the agent's current activity (tool, analysis, file, or subagent task). Prompt text is never shown."
         },
         "cursorOffice.hostPath": {
           "type": "string",
           "default": "",
           "scope": "application",
           "order": 100,
-          "markdownDescription": "Volitelná absolutní cesta k `CursorOffice.Host.dll`, `.csproj` nebo spustitelnému lokálnímu hostu. Prázdná hodnota použije automatickou detekci."
+          "markdownDescription": "Optional absolute path to `CursorOffice.Host.dll`, a `.csproj`, or a local host executable. Leave empty for automatic discovery."
         }
       }
     }

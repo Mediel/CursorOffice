@@ -16,7 +16,7 @@ public sealed class AgentLifecycleTests
 
         Assert.Equal(AgentStatus.Idle, idle.Status);
         Assert.Equal(lastActivity, idle.LastActivityAt);
-        Assert.Equal("Sample: naposledy zaznamenaný", idle.CurrentTask);
+        Assert.Equal("Sample: last observed", idle.CurrentTask);
         Assert.True(AgentLifecycle.IsExpired(idle, now));
         Assert.False(AgentLifecycle.IsExpired(ghost, now));
     }
@@ -116,7 +116,7 @@ public sealed class AgentLifecycleTests
             id,
             "Cursor chat",
             status,
-            "Sample: aktivní",
+            "Sample: active",
             null,
             lastActivityAt,
             kind,

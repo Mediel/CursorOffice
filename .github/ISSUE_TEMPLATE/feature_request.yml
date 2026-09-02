@@ -1,0 +1,49 @@
+name: Feature request
+description: Propose a focused improvement to Cursor Office
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user problem or workflow limitation should be solved?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the desired behavior, not only the implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: privacy
+    attributes:
+      label: Does this require additional local or remote data?
+      options:
+        - No
+        - Yes, local data only
+        - Yes, remote or cloud data
+        - Unsure
+    validations:
+      required: true
+  - type: textarea
+    id: privacy-details
+    attributes:
+      label: Data and privacy impact
+      description: If applicable, identify the exact data source, retention, and user control.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and the roadmap.
+          required: true
+        - label: This request does not contain private prompts, responses, transcripts, credentials, or source code.
+          required: true

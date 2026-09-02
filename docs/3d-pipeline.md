@@ -1,46 +1,46 @@
 # 3D asset pipeline
 
-Produkční modely budou vlastní a vzniknou v Blenderu. Procedurální scéna zůstane jako rychlý fallback, testovací fixture a nástroj pro ověřování dispozice.
+Production models will be original and created in Blender. The procedural scene remains a fast fallback, test fixture, and layout-validation tool.
 
-## Adresářový model
+## Directory layout
 
 ```text
 assets/
-├── source/                 # .blend a zdrojové textury; neupravovat export ručně
+├── source/                 # .blend files and source textures; never hand-edit exports
 │   ├── characters/
 │   └── office/
-├── manifests/              # autor, licence, verze a rozpočty
-└── runtime/                # optimalizované .glb určené k zabalení
+├── manifests/              # author, license, version, and budgets
+└── runtime/                # optimized .glb files included in the extension
     ├── characters/
     └── office/
 ```
 
-## Konvence exportu
+## Export conventions
 
-- Y-up, metry, transformace aplikované před exportem.
-- Kladný směr postavy je +Z.
-- Rig postavy používá stabilní kostru a názvy klipů `Idle`, `Walk`, `Work`, `Talk`, `Celebrate`, `Error`.
-- Body zájmu jsou prázdné uzly `poi-{type}-{id}`.
-- Kolizní geometrie a navmesh nejsou renderované a mají samostatné uzly.
-- Runtime používá GLB; zdrojové `.blend` se nikdy nenačítají ve Webview.
+- Y-up, meters, transforms applied before export.
+- Character forward direction is +Z.
+- Character rigs use stable skeletons and clip names: `Idle`, `Walk`, `Work`, `Talk`, `Celebrate`, and `Error`.
+- Points of interest are empty nodes named `poi-{type}-{id}`.
+- Collision geometry and navmesh are non-rendered, separately named nodes.
+- Runtime uses GLB; the Webview never loads source `.blend` files.
 
-## Rozpočty prvního vertical slice
+## First vertical-slice budgets
 
-| Asset | Trojúhelníky | Textury | Poznámka |
-| --- | ---: | ---: | --- |
-| postava LOD0 | do 18 000 | 1× 1024² | jedna sdílená kostra |
-| postava LOD1 | do 7 000 | sdílené | pro vzdálené agenty |
-| kancelář | do 120 000 | atlas do 2× 2048² | modulární díly |
-| jednotlivý prop | do 4 000 | atlas | preferovat instancing |
+| Asset | Triangles | Textures | Notes |
+|---|---:|---:|---|
+| Character LOD0 | up to 18,000 | 1 × 1024² | one shared skeleton |
+| Character LOD1 | up to 7,000 | shared | distant agents |
+| Office | up to 120,000 | atlas up to 2 × 2048² | modular pieces |
+| Individual prop | up to 4,000 | atlas | prefer instancing |
 
-## Build krok
+## Build step
 
-Plánovaný exporter musí být reprodukovatelný z příkazové řádky Blenderu a musí:
+The planned exporter must run reproducibly from the Blender command line and:
 
-1. ověřit názvy uzlů a animačních klipů,
-2. aplikovat definované exportní nastavení,
-3. zapsat GLB do `assets/runtime`,
-4. vypsat polygonový a texturový rozpočet,
-5. selhat při chybějící licenci nebo překročení limitu.
+1. validate node and animation-clip names;
+2. apply defined export settings;
+3. write GLB files to `assets/runtime`;
+4. report polygon and texture budgets; and
+5. fail on a missing license or exceeded budget.
 
-První část této brány už je implementována příkazem `pnpm assets:validate`: ověřuje GLB 2 a povinný manifest. Kontrola rozpočtů proti kategoriím se doplní současně s prvním skutečným Blender vertical slice.
+`pnpm assets:validate` already validates the GLB 2 header and requires a manifest for every runtime model. Category-budget checks will be added with the first real Blender vertical slice.

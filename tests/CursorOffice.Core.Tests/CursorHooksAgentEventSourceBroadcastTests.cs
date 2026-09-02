@@ -19,7 +19,7 @@ public sealed class CursorHooksAgentEventSourceBroadcastTests
               "displayName": "Cursor Agent",
               "role": "Sample · agent",
               "status": "working",
-              "currentTask": "Sample: analyzuje další krok",
+              "currentTask": "Sample: analyzing the next step",
               "detail": "Sample · test",
               "occurredAt": "{{DateTimeOffset.UtcNow:O}}",
               "kind": "primary",

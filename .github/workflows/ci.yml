@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.12.0
+          cache: pnpm
+
+      - name: Install JavaScript dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Restore .NET dependencies
+        run: dotnet restore CursorOffice.slnx
+
+      - name: Check .NET formatting
+        run: dotnet format CursorOffice.slnx --verify-no-changes --no-restore
+
+      - name: Build .NET projects
+        run: dotnet build CursorOffice.slnx --no-restore
+
+      - name: Test .NET projects
+        run: dotnet test CursorOffice.slnx --no-build
+
+      - name: Check TypeScript projects
+        run: pnpm check
+
+      - name: Build TypeScript projects
+        run: pnpm build

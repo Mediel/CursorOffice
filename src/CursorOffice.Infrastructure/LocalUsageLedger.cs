@@ -71,9 +71,9 @@ public sealed class LocalUsageLedger
             records.Add(new UsageRecord(
                 snapshot.Id,
                 snapshot.GenerationId,
-                string.IsNullOrWhiteSpace(snapshot.Workspace) ? "Neznámý workspace" : snapshot.Workspace,
+                string.IsNullOrWhiteSpace(snapshot.Workspace) ? "Unknown workspace" : snapshot.Workspace,
                 string.IsNullOrWhiteSpace(snapshot.WorkspacePath) ? snapshot.Workspace : snapshot.WorkspacePath,
-                string.IsNullOrWhiteSpace(snapshot.Model) ? "Neznámý model" : snapshot.Model,
+                string.IsNullOrWhiteSpace(snapshot.Model) ? "Unknown model" : snapshot.Model,
                 snapshot.LastActivityAt,
                 usage));
             recordIndexes[key] = records.Count - 1;
@@ -98,7 +98,7 @@ public sealed class LocalUsageLedger
     {
         lock (gate)
         {
-            var total = BuildBucket("Celkem", records);
+            var total = BuildBucket("Total", records);
             var workspaces = records
                 .GroupBy(record => record.WorkspacePath ?? record.Workspace, StringComparer.OrdinalIgnoreCase)
                 .Select(group => BuildBucket(group.Key, group))

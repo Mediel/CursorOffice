@@ -1,5 +1,5 @@
 {
-  "$comment": "Zkopírujte pod názvem odpovídajícím assets/runtime, například office/main.asset.json.",
+  "$comment": "Copy this under a path matching assets/runtime, for example office/main.asset.json.",
   "id": "example-owned-asset",
   "author": "Cursor Office contributors",
   "source": "Original Blender source in assets/source",

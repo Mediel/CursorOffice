@@ -129,11 +129,11 @@ export class LocalHostClient implements vscode.Disposable {
     this.stopProcess();
     const launch = this.resolveLaunch();
     if (!launch) {
-      this.output.appendLine('[host] Lokální .NET host nebyl nalezen; zůstává demonstrační projekce.');
+      this.output.appendLine('[host] Local .NET host not found; keeping the demonstration projection.');
       return;
     }
 
-    this.output.appendLine(`[host] Spouštím ${launch.description}`);
+    this.output.appendLine(`[host] Starting ${launch.description}`);
     const child = spawn(launch.command, launch.args, {
       cwd: this.extensionUri.fsPath,
       windowsHide: true,
@@ -143,9 +143,9 @@ export class LocalHostClient implements vscode.Disposable {
     this.reader = createInterface({ input: child.stdout });
     this.reader.on('line', line => this.acceptLine(line));
     child.stderr.on('data', chunk => this.output.append(chunk.toString()));
-    child.on('error', error => this.output.appendLine(`[host] Nelze spustit proces: ${error.message}`));
+    child.on('error', error => this.output.appendLine(`[host] Could not start the process: ${error.message}`));
     child.on('exit', (code, signal) => {
-      this.output.appendLine(`[host] Proces skončil (code=${String(code)}, signal=${String(signal)}).`);
+      this.output.appendLine(`[host] Process exited (code=${String(code)}, signal=${String(signal)}).`);
       if (this.process === child) {
         this.process = undefined;
         this.reader = undefined;
@@ -206,16 +206,16 @@ export class LocalHostClient implements vscode.Disposable {
     try {
       envelope = JSON.parse(trimmed) as ProtocolEnvelope;
     } catch {
-      this.output.appendLine(`[host] Neplatný NDJSON řádek: ${trimmed}`);
+      this.output.appendLine(`[host] Invalid NDJSON line: ${trimmed}`);
       return;
     }
 
     if (envelope.protocolVersion !== 1) {
-      this.output.appendLine(`[host] Nepodporovaná verze protokolu: ${String(envelope.protocolVersion)}`);
+      this.output.appendLine(`[host] Unsupported protocol version: ${String(envelope.protocolVersion)}`);
       return;
     }
     if (envelope.type === 'host.ready') {
-      this.output.appendLine('[host] Připraven.');
+      this.output.appendLine('[host] Ready.');
       return;
     }
     if (envelope.type === 'usage.changed' && this.isUsageSnapshot(envelope.payload)) {
@@ -329,7 +329,7 @@ export class LocalHostClient implements vscode.Disposable {
 function emptyUsageSnapshot(): HostUsageSnapshot {
   return {
     total: {
-      key: 'Celkem',
+      key: 'Total',
       inputTokens: 0,
       outputTokens: 0,
       cacheReadTokens: 0,

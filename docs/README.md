@@ -1,36 +1,36 @@
-# Dokumentace Cursor Office
+# Cursor Office documentation
 
-## Pro uživatele
+## For users
 
-1. [Uživatelská příručka](user-guide.md) – instalace, první ověření, ovládání, filtry, modely a tokeny.
-2. [Model kanceláře a chování postav](behavior-model.md) – přesný význam manažerů, chatů a subagentů, pracovní tok, stavy, autonomie a odchod.
-3. [Diagnostika a řešení problémů](troubleshooting.md) – chybějící manažeři, neaktuální stavy, stará verze, modely, tokeny a navigace.
+1. [User guide](user-guide.md) — installation, first verification, controls, filters, models, and tokens.
+2. [Office and character behavior model](behavior-model.md) — exact meaning of managers, chats, and subagents; workflows, states, autonomy, and retirement.
+3. [Troubleshooting](troubleshooting.md) — missing managers, stale states, old versions, models, tokens, and navigation.
 
-## Pro vývojáře
+## For developers
 
-1. [Architektura](architecture.md) – komponenty, směry závislostí, Webview a bezpečnostní hranice.
-2. [Lokální vývoj](development.md) – build, testy, debug extension, demonstrační režimy a VSIX.
-3. [Integrace s lokálním Cursorem](cursor-integration.md) – hooky, fallback metadata, korelace oken a privacy model.
-4. [Komunikační protokol](protocol.md) – verzovaný NDJSON kontrakt a lokální broadcast spool.
-5. [ADR-0001](adr/0001-hybrid-dotnet-typescript.md) – důvod hybridní architektury .NET + TypeScript.
+1. [Architecture](architecture.md) — components, dependency direction, Webview responsibilities, and security boundaries.
+2. [Local development](development.md) — build, tests, extension debugging, demo modes, and VSIX packaging.
+3. [Local Cursor integration](cursor-integration.md) — Hooks, metadata fallback, window correlation, and the privacy model.
+4. [Communication protocol](protocol.md) — versioned NDJSON contract and the local broadcast spool.
+5. [ADR-0001](adr/0001-hybrid-dotnet-typescript.md) — why the project uses .NET and TypeScript together.
 
-## Vizuální směr a assety
+## Visual direction and assets
 
-1. [Vizuální a funkční parita](visual-parity.md) – současná úroveň a plánované zlepšení.
-2. [Poučení z The Delegation](upstream-lessons.md) – převzaté principy bez přebírání kódu nebo assetů.
-3. [3D asset pipeline](3d-pipeline.md) – cesta od procedurální geometrie k vlastním GLB modelům.
-4. [Pravidla pro assety](../assets/README.md) – licence, původ a validační pravidla.
-5. [Roadmapa](roadmap.md) – dokončené a plánované milníky.
+1. [Visual and functional parity](visual-parity.md) — current quality and planned improvements.
+2. [Lessons from The Delegation](upstream-lessons.md) — product principles adopted without copying code or assets.
+3. [3D asset pipeline](3d-pipeline.md) — path from procedural geometry to original GLB models.
+4. [Asset policy](../assets/README.md) — licensing, provenance, and validation rules.
+5. [Roadmap](roadmap.md) — completed and planned milestones.
 
-## Který dokument upravit při změně
+## Documentation ownership
 
-| Druh změny | Povinná dokumentace |
+| Change | Documentation to update |
 |---|---|
-| Nová uživatelská funkce nebo ovládání | root `README.md`, `user-guide.md` |
-| Změna hierarchie, stavu, lifecycle nebo časování | `behavior-model.md`, případně `cursor-integration.md` |
-| Změna datového zdroje nebo soukromí | `cursor-integration.md`, `architecture.md`, root `README.md` |
-| Změna protokolu extension ↔ host | `protocol.md` a zvýšení `protocolVersion`, pokud není zpětně kompatibilní |
-| Změna build/test/package procesu | `development.md` |
-| Nový 3D asset | `3d-pipeline.md`, `assets/README.md` a evidence licence |
+| User-facing feature or control | root `README.md`, `user-guide.md` |
+| Hierarchy, state, lifecycle, or timing | `behavior-model.md`, and possibly `cursor-integration.md` |
+| Data source or privacy boundary | `cursor-integration.md`, `architecture.md`, root `README.md` |
+| Extension ↔ host protocol | `protocol.md`; increment `protocolVersion` when incompatible |
+| Build, test, or packaging process | `development.md` |
+| New 3D asset | `3d-pipeline.md`, `assets/README.md`, and an asset manifest |
 
-Časování v dokumentaci musí odpovídat implementaci. Pokud se mění například `ownerManualOverrideSeconds`, heartbeat, fallback `activeWindow`, host retention nebo retirement delay, musí se ve stejném commitu aktualizovat i [model chování](behavior-model.md).
+Documented timing must match the implementation. Constants such as owner manual override, heartbeat lease, fallback activity windows, host retention, and retirement delay must be documented in the same change that modifies them.

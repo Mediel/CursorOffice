@@ -88,12 +88,12 @@ public sealed class WindowCorrelationStoreTests : IDisposable
     [Fact]
     public void Resolve_MatchesCursorUriWorkspaceRootToWindowsHeartbeat()
     {
-        WriteWindow("window-a", "CursorOffice · A", true, now, "C:\\Users\\erdtM\\source\\repos\\CursorOffice");
+        WriteWindow("window-a", "CursorOffice · A", true, now, "C:\\Users\\dev\\source\\repos\\CursorOffice");
 
         var result = Store().Resolve(
             "conversation-1",
             null,
-            ["/c:/Users/erdtM/source/repos/CursorOffice"],
+            ["/c:/Users/dev/source/repos/CursorOffice"],
             "beforeSubmitPrompt",
             now);
 
@@ -105,12 +105,12 @@ public sealed class WindowCorrelationStoreTests : IDisposable
     [Fact]
     public void Resolve_MatchesFileUriWorkspaceRootToHeartbeatFsPath()
     {
-        WriteWindow("window-a", "CursorOffice · A", true, now, @"c:\users\erdtm\source\repos\cursoroffice");
+        WriteWindow("window-a", "CursorOffice · A", true, now, @"c:\users\dev\source\repos\cursoroffice");
 
         var result = Store().Resolve(
             "conversation-1",
             null,
-            ["file:///c:/Users/erdtM/source/repos/CursorOffice"],
+            ["file:///c:/Users/dev/source/repos/CursorOffice"],
             "beforeSubmitPrompt",
             now);
 

@@ -35,7 +35,7 @@ public sealed class AgentRegistryTests
     public void GetSnapshot_OrdersAgentsByDisplayName()
     {
         var registry = new AgentRegistry();
-        registry.Upsert(CreateAgent("zdenek", "Zdeněk", AgentStatus.Idle));
+        registry.Upsert(CreateAgent("zdenek", "Zdenek", AgentStatus.Idle));
         registry.Upsert(CreateAgent("alice", "Alice", AgentStatus.Working));
 
         var snapshot = registry.GetSnapshot();
@@ -43,7 +43,7 @@ public sealed class AgentRegistryTests
         Assert.Collection(
             snapshot,
             agent => Assert.Equal("Alice", agent.DisplayName),
-            agent => Assert.Equal("Zdeněk", agent.DisplayName));
+            agent => Assert.Equal("Zdenek", agent.DisplayName));
     }
 
     [Fact]

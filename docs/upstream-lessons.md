@@ -1,31 +1,31 @@
-# Poučení z porovnání s The Delegation
+# Lessons from The Delegation
 
-Referenční projekt The Delegation je měřítkem kvality zážitku, nikoli architekturou k převzetí. Cursor Office zůstává lokální pozorovací vrstvou nad skutečnými Cursor agenty a nebude přebírat vlastní Gemini orchestraci, ukládání promptů ani assety s nekompatibilní licencí.
+The Delegation is a benchmark for product experience, not an architecture to copy. Cursor Office remains a local observational layer over real Cursor agents and does not adopt Gemini orchestration, prompt storage, source code, or incompatibly licensed assets.
 
-## Co zachovat z Cursor Office
+## Keep from Cursor Office
 
-- lokální a privacy-filtered Cursor Hooks bridge,
-- skutečnou hierarchii workspace → konverzace → podagent,
-- přesné tokeny bez dopočítaných odhadů,
-- vlastní kolizní navigaci, dveřní provoz a lifecycle dočasných agentů,
-- lehký Webview vhodný jako záložka IDE.
+- Local, privacy-filtered Cursor Hooks bridge
+- Real workspace → conversation → subagent hierarchy
+- Exact tokens only, with no inferred estimates
+- Original collision navigation, door traffic, and temporary-agent lifecycle
+- Lightweight Webview suitable for an IDE tab
 
-## V čem se přiblížit referenci
+## Learn from the reference
 
-1. **Prostorová uvěřitelnost.** Postava musí používat konkrétní nábytek, nikoli pouze dojít na přibližnou souřadnici. Každý interaktivní kus nábytku má mít walkable approach point, vizuální kotvu, orientaci, typ posedu a obsazenost.
-2. **Čitelnost práce.** Inspector doplnit o perzistentní activity timeline, tool call signály, delegaci, handoff a review stav.
-3. **Vizuální asset pipeline.** Po stabilizaci behavior kontraktu nahradit vybrané procedurální modely vlastními optimalizovanými GLB assety a baked animacemi.
-4. **Udržitelnost frontendu.** Rozdělit `OfficeWorld` na scénu/prostor, lifecycle, sociální koordinátor, navigaci a prezentační vrstvu dříve, než přibude workflow UI.
-5. **Škálování.** Až profilování ukáže limit, zavést instancing/LOD pro postavy a opakovaný nábytek.
+1. **Spatial credibility.** Characters should use concrete furniture, not approximate coordinates. Interactive furniture needs a walkable approach point, visual anchor, orientation, pose type, and occupancy state.
+2. **Readable work.** The inspector should expose persistent activity history, tool-call signals, delegation, handoff, and review state.
+3. **Visual asset pipeline.** Once the behavior contract is stable, selected procedural models can be replaced with original optimized GLB assets and baked animation.
+4. **Frontend maintainability.** Separate scene layout, lifecycle, social coordination, navigation, and presentation before adding more workflow UI.
+5. **Scaling.** Add instancing and LOD only after profiling identifies a real bottleneck.
 
-## Realizovaný první krok
+## First implemented lesson
 
-Gauč a konferenční stolek používají sdílené fixture definice, ze kterých vzniká geometrie i kolizní mapa. Gaučové POI odděluje bezpečný bod příchodu před colliderem od lokální vizuální kotvy na sedáku. Procedurální rig při sedání plynule přejede na kotvu a použije samostatný uvolněný `sofaSeat` posed; poradní židle zůstávají vzpřímené. Stejný kontrakt lze později použít pro křesla, barové stoličky, kuchyňku a vlastní GLB nábytek.
+The sofa and coffee table share fixture definitions that produce both geometry and collision data. Sofa POIs separate a safe approach point from a visual seat anchor. The procedural rig slides smoothly onto the anchor and uses a relaxed `sofaSeat` pose, while meeting chairs remain upright. The same contract can later support armchairs, stools, kitchen furniture, and original GLB assets.
 
-## Následující pořadí
+## Recommended order
 
-1. Doplnit kotvy a typy posedu ke všem židlím a křeslům.
-2. Oddělit prostorové fixtures a stavbu scény z `OfficeWorld`.
-3. Přidat lokální activity timeline do inspectoru.
-4. Vytvořit jednu vlastní rigovanou GLB postavu jako vertical slice.
-5. Teprve potom přidávat Kanban/review ovládání a optimalizovat instancing.
+1. Add anchors and pose types to every chair and armchair.
+2. Extract spatial fixtures and scene construction from `OfficeWorld`.
+3. Add a persistent local activity timeline to the inspector.
+4. Build one original rigged GLB character as a vertical slice.
+5. Add Kanban/review controls and instancing optimization afterward.

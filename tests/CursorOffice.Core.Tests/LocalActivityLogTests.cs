@@ -61,8 +61,8 @@ public sealed class LocalActivityLogTests
         var firstTime = DateTimeOffset.Parse("2026-08-26T10:00:00Z");
         var secondTime = DateTimeOffset.Parse("2026-08-26T10:02:00Z");
         var thirdTime = DateTimeOffset.Parse("2026-08-26T10:01:00Z");
-        var first = CreateSnapshot("agent-a", "Alice", AgentStatus.Working, firstTime, currentTask: "Repo: analyzuje další krok");
-        var updated = CreateSnapshot("agent-a", "Alice", AgentStatus.WaitingForUser, secondTime, currentTask: "Repo: předává odpověď");
+        var first = CreateSnapshot("agent-a", "Alice", AgentStatus.Working, firstTime, currentTask: "Repo: analyzing the next step");
+        var updated = CreateSnapshot("agent-a", "Alice", AgentStatus.WaitingForUser, secondTime, currentTask: "Repo: handing off a response");
         var other = CreateSnapshot("agent-b", "Bob", AgentStatus.Working, thirdTime);
 
         var log = new LocalActivityLog(workspace.LogPath);
@@ -74,7 +74,7 @@ public sealed class LocalActivityLogTests
         var agents = reloaded.GetLatestAgents();
         var alice = Assert.Single(agents, agent => agent.Id == "agent-a");
         Assert.Equal(AgentStatus.WaitingForUser, alice.Status);
-        Assert.Equal("Repo: předává odpověď", alice.CurrentTask);
+        Assert.Equal("Repo: handing off a response", alice.CurrentTask);
         Assert.Equal("Bob", Assert.Single(agents, agent => agent.Id == "agent-b").DisplayName);
 
         var timeline = reloaded.GetTimeline(10);
@@ -156,7 +156,7 @@ public sealed class LocalActivityLogTests
             "Alice",
             AgentStatus.Working,
             DateTimeOffset.Parse("2026-08-26T10:00:00Z"),
-            currentTask: "Repo: přijímá nové zadání",
+            currentTask: "Repo: receiving a new assignment",
             detail: "never persist this prompt or reasoning body",
             interactionKind: AgentInteractionKind.UserPrompt);
         var usesTool = CreateSnapshot(
@@ -164,19 +164,19 @@ public sealed class LocalActivityLogTests
             "Alice",
             AgentStatus.Working,
             DateTimeOffset.Parse("2026-08-26T10:01:00Z"),
-            currentTask: "Repo: používá nástroj Shell");
+            currentTask: "Repo: using tool Shell");
         var usedTool = CreateSnapshot(
             "agent-a",
             "Alice",
             AgentStatus.Working,
             DateTimeOffset.Parse("2026-08-26T10:02:00Z"),
-            currentTask: "Repo: použil nástroj ReadFile");
+            currentTask: "Repo: used tool ReadFile");
         var failedTool = CreateSnapshot(
             "agent-a",
             "Alice",
             AgentStatus.Error,
             DateTimeOffset.Parse("2026-08-26T10:03:00Z"),
-            currentTask: "Repo: nástroj Delete selhal");
+            currentTask: "Repo: tool Delete failed");
         var response = CreateSnapshot(
             "agent-a",
             "Alice",
@@ -223,10 +223,10 @@ public sealed class LocalActivityLogTests
             AssertPrivacySafeTimelineFields(names);
             var json = document.RootElement.GetRawText();
             Assert.DoesNotContain("never persist this prompt or reasoning body", json, StringComparison.Ordinal);
-            Assert.DoesNotContain("přijímá nové zadání", json, StringComparison.Ordinal);
-            Assert.DoesNotContain("používá nástroj", json, StringComparison.Ordinal);
-            Assert.DoesNotContain("použil nástroj", json, StringComparison.Ordinal);
-            Assert.DoesNotContain("selhal", json, StringComparison.Ordinal);
+            Assert.DoesNotContain("receiving a new assignment", json, StringComparison.Ordinal);
+            Assert.DoesNotContain("using tool", json, StringComparison.Ordinal);
+            Assert.DoesNotContain("used tool", json, StringComparison.Ordinal);
+            Assert.DoesNotContain("failed", json, StringComparison.Ordinal);
         }
 
         foreach (var line in File.ReadLines(workspace.LogPath))

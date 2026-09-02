@@ -1,99 +1,141 @@
-# Integrace s lokálním Cursorem
+# Local Cursor integration
 
-Cursor Office nepoužívá Cursor Cloud API. Integrace je rozdělena na tři lokální adaptéry, aby vizualizace nebyla svázaná s jedním harness skriptem.
+Cursor Office does not use the Cursor Cloud API. Integration is split into local adapters so the visualization is not tied to one harness or event source.
 
-## 1. Cursor Hooks – primární observační vrstva
+## 1. Cursor Hooks: primary observational layer
 
-Oficiální Cursor Hooks běží jako lokální procesy nad JSON přes standardní vstup/výstup. Uživatelská konfigurace je v `~/.cursor/hooks.json` a platí pro všechna lokální Cursor okna. Pro Cursor Office jsou důležité zejména:
+Cursor Hooks run local processes that exchange JSON over standard input/output. The per-user configuration in `~/.cursor/hooks.json` applies to all local Cursor windows. Cursor Office observes:
 
-- `sessionStart` / `sessionEnd` – životní cyklus hlavní konverzace,
-- `beforeSubmitPrompt` – okamžik odeslání nového zadání bez uložení jeho textu,
-- `preToolUse` – začátek práce nástroje bez uložení vstupu,
-- `postToolUse` / `postToolUseFailure` – činnost a chyba,
-- `afterAgentThought` – změna aktivity bez ukládání reasoning textu,
-- `afterFileEdit` – úprava souboru; bridge si nechá jen basename, ne cestu ani obsah,
-- `preCompact` – zaplnění kontextového okna, nikoli účtovaná generace,
-- `afterAgentResponse` – dokončení odpovědi bez ukládání jejího textu,
-- `subagentStart` / `subagentStop` – příchod a dokončení, chyba nebo přerušení podagenta,
-- `stop` – konec agent loopu.
+- `sessionStart` / `sessionEnd` — main-conversation lifecycle
+- `beforeSubmitPrompt` — a new assignment, without retaining prompt text
+- `preToolUse` — work starting, without retaining tool input
+- `postToolUse` / `postToolUseFailure` — activity and failure
+- `afterAgentThought` — activity change, without retaining reasoning text
+- `afterFileEdit` — file activity; only the basename is retained
+- `preCompact` — context-window fill, not generation billing
+- `afterAgentResponse` — response completion, without retaining response text
+- `subagentStart` / `subagentStop` — subagent arrival, completion, failure, or interruption
+- `stop` — end of an agent loop
 
-Společný payload obsahuje stabilní `conversation_id`, `generation_id`, model, `workspace_roots`, verzi Cursoru a volitelnou `transcript_path`. Od Cursoru 3.18 přichází `workspace_roots` na Windows jako URI cesta `/c:/Users/...`; bridge ji před korelací s heartbeat okna převede na běžnou filesystem cestu. Cursor Office instaluje všechny uvedené hooky jako pasivní pozorovatele (`observedEvents` v instalátoru, včetně `afterFileEdit` a `preCompact`): vrací prázdnou odpověď, nic nepovolují, nezakazují ani nemění. Metadata transkriptu zůstávají fallbackem pro verze a workflow, které některý lifecycle hook nevyšlou.
+The common payload can contain stable `conversation_id` and `generation_id` values, a model, `workspace_roots`, Cursor version, and an optional `transcript_path`. Cursor 3.18 on Windows emits workspace roots in URI form such as `/c:/Users/...`; the bridge normalizes these to regular file-system paths before matching window heartbeats.
 
-Bridge je fail-open. Z raw payloadu neukládá prompt, reasoning, příkaz, obsah souboru ani výstup nástroje. Krátký očištěný `task`/`description` podagenta smí zůstat jako popisek práce (max. 140 znaků). Do lokální spool fronty předá jen normalizovaná metadata potřebná pro stav postavy.
+The extension installs these hooks as passive observers. They return an empty response and never approve, deny, block, or modify an action. Transcript metadata remains a fallback for versions and workflows that do not emit every lifecycle event.
 
-Spool `%LOCALAPPDATA%/CursorOffice/events-v3` není work queue s jediným spotřebitelem. Události zůstávají po dobu deseti minut jako lokální broadcast, každý host spuštěný jednotlivým Cursor oknem vede vlastní seznam přečtených souborů a úklid nastane až po expiraci. Verzovaný adresář není sledovaný staršími destruktivními hosty, kteří mohou stále běžet v nerestartovaných Cursor oknech. Nově spuštěný host přehraje nejvýše dvě minuty nedávných událostí, aby obnovil aktivní projekci bez dlouhé historické laviny.
+### Privacy filtering
 
-### Sociální signály bez čtení konverzace
+The bridge is fail-open and discards sensitive fields before writing anything to the local spool. It does not retain:
 
-- `beforeSubmitPrompt` nebo změna `generation_id` u existující hlavní konverzace znamená nový uživatelský vstup a vyvolá návštěvu agenta u majitele,
-- `afterAgentResponse` potvrdí dokončení odpovědi; text odpovědi bridge zahodí,
-- `subagentStart` značí začátek delegace; nově pozorovaný aktivní soubor v `subagents/` je pouze fallback,
-- `subagentStop` značí handoff výsledku rodičovské konverzaci; krátké `description` nebo `task` se očistí, omezí na 140 znaků a použije jako popis práce, zatímco výstupní `summary` se neukládá.
+- prompts or responses;
+- reasoning or agent-thought text;
+- commands or tool inputs;
+- source-file contents;
+- tool output; or
+- subagent result summaries.
 
-Webview tyto signály frontuje. Jedna postava proto nevede několik rozhovorů současně a pozdější handoff počká na dokončení dřívější interakce. Přestože Cursor tyto hooky umí používat i pro řízení oprávnění, bridge Cursor Office jejich rozhodovací výstupy vůbec nevytváří.
+A short subagent `task` or `description` may be sanitized and limited to 140 characters for the work label. File-edit activity retains only the basename, not the full path or contents.
 
-### Model, činnost, tokeny a kontext
+The normalized event spool at `%LOCALAPPDATA%/CursorOffice/events-v3` is a broadcast, not a single-consumer queue. Events remain for ten minutes, each host maintains its own read set, and cleanup occurs only after expiry. The versioned directory prevents an older destructive host in an unreloaded Cursor window from consuming current events. A newly started host replays at most two minutes of recent events to restore active state without processing a large history.
 
-Model pochází ze společného hook payloadu: pole `model` nebo `model_id`. Podagent může dodat vlastní `subagent_model`; jinak zdědí model rodičovské události. Cursor Office model nedoplňuje z výběru v UI. Pokud pozdější hook stejné `generation_id` model vynechá, `AgentMonitor` ponechá poslední prokázanou hodnotu. Volitelné `model_params` (`thinking`, `effort`, `context`) se berou stejně: jen oznámené knoby, bez raw parametrů a bez textu promptu.
+### Social signals without conversation contents
 
-Veřejný Cursor Hooks kontrakt **účtované (billing) tokeny negarantuje**. Když je konkrétní runtime přesto dodá jako `input_tokens`/`inputTokens`, `output_tokens`/`outputTokens`, `cache_read_tokens`/`cacheReadTokens` a `cache_write_tokens`/`cacheWriteTokens` (na kořeni nebo v objektu `usage`), bridge je předá jako generační `usage`. Lokální ledger je zapíše jen tehdy, když existuje `generation_id` a součet čítačů je větší než nula. Ledger **nic neodhaduje**: chybějící spotřebu nenahrazuje nulou, délkou textu ani cenou. Stejnou generaci nezapočítá dvakrát a průběžné čítače slučuje maximem. Agregace jsou celkem, po úplné cestě workspace, po modelu, po jejich kombinaci a po lokálním kalendářním dni.
+- `beforeSubmitPrompt`, or a new `generation_id` for an existing main conversation, produces a user-assignment interaction.
+- `afterAgentResponse` confirms completion; the response body is discarded.
+- `subagentStart` produces a delegation interaction; a newly active file under `subagents/` is fallback evidence only.
+- `subagentStop` produces a handoff to the parent conversation; `summary` is discarded.
 
-`preCompact` je jiný údaj: zaplnění **kontextového okna** (`context_tokens`, `context_window_size`, `context_usage_percent`). Není to účtovaná generace. Hodnota jde do `contextUsage` na snapshotu a do UI jako „kontextové okno“. Do `usage` ani do ledgeru se nezapočítává.
+The Webview queues these signals so one character does not participate in multiple conversations simultaneously. Cursor Hooks can support permission decisions, but Cursor Office intentionally emits no such decision output.
 
-Činnost agenta je krátký privacy-safe popisek, ne obsah konverzace. Bridge z hooku bere název nástroje, „analyzuje další krok“, basename upraveného souboru, očištěný `task`/`description` podagenta (max. 140 znaků) nebo stav komprese kontextu. Prompt, reasoning, příkaz, obsah souboru, výstup nástroje i `summary` se zahazují.
+### Models, activity, tokens, and context
 
-Tato data nejsou totéž co úplný účet Cursoru. UI proto rozlišuje „zaznamenané tokeny“ poslední generace, workspace agregaci manažera a volitelné zaplnění kontextu. Chybějící údaj zůstane prázdný. ACP/CLI adaptér bude moci v budoucnu přidat přesnou spotřebu z runtime výsledku stejným doménovým kontraktem.
+The model comes from `model` or `model_id` in the common Hook payload. A subagent can report `subagent_model`; otherwise the bridge may use the parent event's model. Cursor Office does not infer a model from the editor UI. Later events in the same `generation_id` do not erase an already evidenced model or safe `model_params` values merely by omitting them.
 
-Oficiální reference: [Cursor Hooks](https://cursor.com/docs/hooks).
+The public Cursor Hooks contract does not guarantee billed token counters. If a runtime supplies `input_tokens`, `output_tokens`, `cache_read_tokens`, and `cache_write_tokens` in supported snake_case or camelCase locations, the bridge converts them into generation `usage`. The local ledger records usage only when a `generation_id` exists and at least one counter is greater than zero.
 
-## 2. Metadata lokálních transkriptů – pasivní fallback
+The ledger never estimates missing usage from text length, prices, or UI state. It deduplicates a generation and merges progressive counters by taking their maxima. Aggregates are available by:
 
-Když některá verze Cursoru nebo konkrétní workflow nevyšle hook pro vznik podagenta, fallback sleduje pouze cestu, velikost a čas změny souborů v `~/.cursor/projects/*/agent-transcripts`. Obsah `.jsonl` neotevírá. UUID názvu souboru dává stabilní instanci:
+- total usage;
+- full workspace path;
+- model;
+- workspace/model pair; and
+- local calendar day.
 
-- hlavní transcript → `primary` agent,
-- soubor v `subagents/` → `subagent` s rodičem podle adresáře konverzace.
+`preCompact` reports a different measurement: context-window fill through `context_tokens`, `context_window_size`, and `context_usage_percent`. This becomes `contextUsage` on the current snapshot and is displayed separately. It is not billed generation usage and is never added to the token ledger.
 
-Změna vlastního souboru v posledních 3 minutách znamená `working`. Pokud se rodičovský transcript ještě hýbe, podagent zůstává `working` až 8 minut i bez vlastního zápisu, protože Cursor často nepřepisuje soubor během přemýšlení nebo dlouhého nástroje. Je-li aktivní kterýkoli podagent, jeho hlavní konverzace zůstává `working` s činností „koordinuje aktivní podagenty“, i když hook mezitím poslal `afterAgentResponse`. Tool hooky podagenta běžně přijdou pod novým `conversation_id` bez vazby na rodiče; bridge proto pamatuje `subagentStart` a pozdější nástroje přiřadí stejnému pracovníkovi. Terminální stavy `completed`, `offline` a `error` smí nastavit pouze skutečný lifecycle hook. Starší fallback je nesmí zrušit; novější zápis do transcriptu může stejné ID znovu označit jako pracující. Fallback `idle` po vypršení aktivního okna smí shodit neterminální hook `working`, aby chybějící `stop` nenechal kancelář trvale plnou pracujících postav. Host stejné evidenční okno použije i na snapshoty obnovené z activity logu.
+Agent activity is a short privacy-safe description: tool name, generic analysis state, edited-file basename, sanitized subagent assignment, or context-compaction state. It is not conversation content.
 
-## 3. Cursor CLI / ACP – budoucí řídicí adaptéry
+These values do not represent a complete Cursor bill. The UI therefore distinguishes last-generation recorded tokens, manager workspace aggregates, and optional context-window fill. Missing data stays unknown. A future ACP/CLI adapter can add exact runtime usage through the same domain contract.
 
-Cursor Agent CLI umí `--output-format stream-json`. NDJSON stream obsahuje `session_id`, inicializaci, assistant delty, zahájení/dokončení tool callu a terminální `result`. To je vhodné pro agenty, které by Cursor Office samo spustilo.
+Official reference: [Cursor Hooks](https://cursor.com/docs/hooks).
 
-ACP (`agent acp`) poskytuje lokální JSON-RPC 2.0 přes stdio, `session/new`, `session/load`, `session/prompt`, streaming `session/update` a žádosti o oprávnění. ACP je vhodné pro budoucí řízení a schvalování, ne pro pasivní převzetí všech už otevřených IDE chatů.
+## 2. Transcript metadata: passive fallback
 
-Oficiální reference: [CLI output format](https://cursor.com/docs/cli/reference/output-format), [Cursor ACP](https://cursor.com/docs/cli/acp).
+When a Cursor version or workflow does not emit the Hook needed to discover a subagent, the fallback observes only path, size, and modification time under `~/.cursor/projects/*/agent-transcripts`. It never opens `.jsonl` contents.
 
-## Organizační model
+File identity supplies stable instances:
 
-Cursor Hooks neposkytují stabilní ID desktopového okna. Extension ale běží samostatně v každém okně, vytvoří lokální identitu složenou z editor session a extension-host procesu a v krátkém heartbeat registru zveřejní pouze workspace, zaměření a časy. Hook tuto lokální přítomnost kombinuje s garantovaným `conversation_id`:
+- main transcript → `primary` agent;
+- file under `subagents/` → `subagent` with the parent conversation inferred from its directory.
+
+A file changed in the last three minutes is evidence of `working`. If the parent transcript is still changing, a subagent may remain active for up to eight minutes because Cursor may not rewrite the subagent file during long reasoning or tool execution. An active subagent keeps its parent conversation in `working` with a coordination activity.
+
+Tool events for a subagent may arrive under a new `conversation_id` without parent information. The bridge remembers `subagentStart` and associates later tools with the same worker.
+
+Only real lifecycle events can establish terminal `completed`, `offline`, and `error` states. Older fallback metadata cannot overwrite them. A genuinely newer transcript write may reactivate the same identity. Conversely, fallback expiry may demote a non-terminal Hook `working` state to `idle` when a missing `stop` would otherwise leave the office permanently busy. The host applies the same evidence windows to snapshots restored from the activity log.
+
+## 3. Cursor CLI and ACP: future control adapters
+
+Cursor Agent CLI supports `--output-format stream-json`, including session initialization, assistant deltas, tool-call lifecycle, and terminal results. It is suitable for agents that Cursor Office may launch in the future.
+
+ACP (`agent acp`) offers local JSON-RPC 2.0 over stdio, including `session/new`, `session/load`, `session/prompt`, streaming `session/update`, and permission requests. ACP is appropriate for future control and approval workflows, not passive discovery of already-open IDE chats.
+
+Official references: [CLI output format](https://cursor.com/docs/cli/reference/output-format) and [Cursor ACP](https://cursor.com/docs/cli/acp).
+
+## Window correlation and team hierarchy
+
+Cursor Hooks do not expose a stable desktop-window ID. The extension runs separately in each Cursor window, creates a temporary local identity from the editor session and extension-host process, and publishes a short heartbeat containing only workspace roots, focus state, and timestamps.
 
 ```text
-majitel
+owner
 └── workspace
-    └── manažer lokálního Cursor okna / týmová zóna
-        └── conversation_id (pracovní agent hlavního chatu)
-            └── subagent_id (dočasný pracovník)
+    └── local Cursor window manager / team zone
+        └── conversation_id (main-chat working agent)
+            └── subagent_id (temporary worker)
 ```
 
-Při `beforeSubmitPrompt` dostane přednost právě zaměřené živé okno se shodným workspace. Vazba se uloží podle hashe konverzace, takže `postToolUse`, odpověď a další background události zůstanou ve správném okně i po změně fokusu. `subagentStart` a `subagentStop` používají vazbu `parent_conversation_id`. Nový prompt může tutéž konverzaci legitimně přestěhovat do jiného okna. Je-li více shodných oken bez jednoznačného fokusu a konverzace ještě vazbu nemá, systém nic nehádá a označí ji jako nezařazenou.
+During `beforeSubmitPrompt`, a focused live window with a matching workspace has priority. The resulting association is stored under a cryptographic hash of the conversation ID, so later tool, response, and background events remain with the correct window after focus changes. Subagents inherit the parent conversation's window. A later prompt may legitimately move the conversation to another focused window.
 
-UI filtruje všechna okna, jedno konkrétní okno nebo nezařazené konverzace. Filtr nemění lifecycle: skryté týmy dál udržují stav a po návratu se objeví ve své skutečné poloze, nikoliv znovu u vchodu. Každé živé IDE okno vytváří právě jednoho stabilního manažera už z heartbeat registru, tedy i bez aktivní konverzace. Hlavní chaty jsou skuteční pracovní agenti pod tímto manažerem a nesou model, generace i spotřebu. Pokud mají podagenty, prezentačně se mění na vedoucí agenty/seniory; podagenti zůstávají pod svým skutečným rodičem.
+If several windows match and none is unambiguously focused, Cursor Office does not guess: the conversation remains unassigned. The UI can filter all windows, one window, or unassigned conversations. Filtering never changes lifecycle or physical state.
 
-Veřejné hook schéma neposkytuje titul chatu z postranního panelu Cursoru, ale poskytuje stabilní `conversation_id`. Host jej lokálně a pouze pro čtení spojí s primárním klíčem `composerId` v Cursor tabulce `composerHeaders` a z JSON hlavičky převezme jen pole `name`. Zprávy ani FTS index se nedotazují. Není-li hlavička dostupná, zůstává bezpečný fallback `Agent <krátké conversation_id>`. Vestavěné hodnoty podagentů jako `generalPurpose` se zobrazí jako `General Purpose`; názvy vlastních agentů z `.cursor/agents` nebo kompatibilního harnessu fungují stejně bez speciální konfigurace.
+Each live IDE window creates one stable presentation manager from its heartbeat, even without an active chat. Main chats are real runtime agents under that manager and own their model, generation, and token data. A main chat with children is presented as a senior agent, while every subagent remains under its actual parent.
 
-Jméno manažera má formu `Manažer <workspace>`. Vzniká přímo pro živé Cursor okno a zůstává přítomné i bez chatu; při více oknech stejného workspace dostane suffix okna. Každá hlavní konverzace se pod ním zobrazí názvem chatu a při existenci potomků se v detailu označí jako vedoucí agent; podagenti zůstávají vnoření pod tímto chatem. `beforeSubmitPrompt` vyvolá návštěvu manažera u majitele a následnou vizuální delegaci pracovnímu agentovi. Ruční ovládání majitele má vždy prioritu; po devíti sekundách nečinnosti se může autonomně vrátit ke stolu nebo navštívit volného agenta. Autonomie pouze vizualizuje skutečné události a běžný pohyb, sama nevytváří Cursor úkoly.
+The public Hook schema provides `conversation_id` but not the sidebar title. On Windows, the host performs a narrow read-only lookup in Cursor's `state.vscdb`: it joins the ID to `composerHeaders` and reads only `composerId` plus the JSON `name` field. It does not query messages, transcripts, or the full-text index. When a title is unavailable, the fallback name is `Agent <short conversation_id>`.
 
-## Lifecycle a ochrana proti hromadění
+Manager names use `Manager <workspace>`, with a short suffix when several live windows share a workspace. A prompt can produce `owner → manager → working agent`; delegation can continue from the senior to subagents. Manual owner control always takes priority. Autonomous owner behavior visualizes movement and real handoffs only; it never creates Cursor tasks.
 
-1. První aktivita stabilního ID vytvoří postavu u vstupu.
-2. `working`, `waitingForUser` a `error` přesouvají postavu k odpovídajícímu POI. Skutečný chat nebo subagent čekající na uživatele používá stojící attention bod; syntetický manažer zůstává jen týmovým agregátem.
-3. Rezervační vrstva každé postavě přidělí jedinečnou židli nebo místo; po příchodu stavový automat plynule přehraje sednutí, práci, poradu či emoci.
-4. `idle` zůstává v kanceláři a střídá volná POI, sezení, gesta a příležitostné rozhovory. `waitingForUser` se z volnočasového plánovače vyjme a periodicky žádá majitele o pozornost. Terminální `completed` spouští u pracovních postav omezený volný režim před odchodem.
-5. Podagent po dokončení, zastavení, chybě nebo zániku instance nejprve provede dostupný sociální handoff a přejde do krátkého volného režimu. Může změnit odpočinkové místo nebo provést gesto a až po odchodovém deadlinu projde ke dveřím. Opakovaný starý snapshot rozběhnutý odchod neruší; nová skutečná aktivita jej naopak legitimně vrátí do práce. Pouze neaktivní hlavní chat bez terminálního signálu má dlouhou host retenci.
-6. Odcházející postava naplánuje kolizně bezpečnou trasu ke vstupu a odejde.
-7. .NET host po stavově odlišném TTL pošle `agent.removed` a odstraní snapshot z týmového panelu; primární členové mají dlouhou retenci, dočasní podagenti krátkou. `working` bez čerstvého důkazu práce po 3 minutách přejde do `idle` (podagent až 8 minut při čerstvém rodiči) a teprve idle TTL postavu odstraní. `waitingForUser` má stejnou retenci jako `idle`. Zánik heartbeat okna je také lifecycle událost: host označí přiřazené chaty jako `offline` a použije krátkou offline retenci, aby nezůstaly viset ve `working` nebo `waitingForUser`.
-8. Stejný starý snapshot již postavu nespawnuje. Novější aktivita stejného ID ji může legitimně vrátit.
+## Lifecycle and accumulation control
 
-Tím je počet postav omezen životním cyklem Cursoru, nikoli délkou běhu kanceláře.
+1. First activity for a stable identity creates a character at the entrance.
+2. `working`, `waitingForUser`, and `error` route the character to an appropriate POI.
+3. Exclusive reservations assign a chair or standing position; the state machine handles sitting, work, meetings, and emotions.
+4. `idle` uses free-time POIs and ambient behavior. A real `waitingForUser` agent leaves the idle planner and periodically asks the owner for attention.
+5. A completed, stopped, failed, or vanished subagent performs an available handoff, enters a short cooldown, and then exits. Repeated old snapshots do not cancel departure; genuinely new activity does.
+6. The departing character follows a collision-safe path to the exit.
+7. The host eventually sends `agent.removed` according to state- and kind-specific TTL rules. Stale `working` evidence first becomes `idle`; offline window members use short retention.
+8. An old duplicate snapshot cannot respawn a retired character, while new activity with the same stable ID can legitimately return it.
 
-Konkrétní výchozí retenční časy hostu i vizuální retirement popisuje [model kanceláře a chování postav](behavior-model.md#neaktivita-dokončení-a-odchod).
+Exact defaults are documented in [Office and character behavior model](behavior-model.md#inactivity-completion-and-retirement).
+
+## Local data inventory
+
+| Location | Purpose and retained fields |
+|---|---|
+| `~/.cursor/hooks.json` | User-level passive Hook configuration managed only for Cursor Office entries |
+| `%LOCALAPPDATA%/CursorOffice/events-v3` | Privacy-filtered normalized events, retained for ten minutes |
+| `%LOCALAPPDATA%/CursorOffice/windows-v1` | Live-window heartbeats |
+| `%LOCALAPPDATA%/CursorOffice/conversation-windows-v1` | Hashed conversation-to-window association |
+| `%LOCALAPPDATA%/CursorOffice/usage-ledger.json` | Exact reported generation usage and aggregates |
+| `%LOCALAPPDATA%/CursorOffice/activity-log.ndjson` | Last agent snapshots and slim privacy-safe activity timeline |
+| `~/.cursor/projects/.../agent-transcripts` | Metadata only; file contents are not opened |
+| `%APPDATA%/Cursor/User/globalStorage/state.vscdb` | Read-only lookup of conversation ID and title only |
+
+Cursor Office has no local network listener. The Webview receives only the normalized projection produced by the extension and host.

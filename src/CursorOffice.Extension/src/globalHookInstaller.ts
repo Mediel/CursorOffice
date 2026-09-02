@@ -35,7 +35,7 @@ export class GlobalHookInstaller {
   public install(): void {
     const source = vscode.Uri.joinPath(this.extensionUri, 'bridge').fsPath;
     if (!existsSync(source)) {
-      throw new Error('Zabalený CursorOffice.Hook nebyl nalezen. Nainstalujte úplný VSIX balíček.');
+      throw new Error('The packaged CursorOffice.Hook was not found. Install a complete VSIX package.');
     }
 
     const bridgeDirectory = this.bridgeDirectory();
@@ -141,7 +141,7 @@ export class GlobalHookInstaller {
   private bridgeDirectory(): string {
     const localAppData = process.env.LOCALAPPDATA;
     if (!localAppData) {
-      throw new Error('Proměnná LOCALAPPDATA není dostupná.');
+      throw new Error('The LOCALAPPDATA environment variable is unavailable.');
     }
     return join(localAppData, 'CursorOffice', 'bridge');
   }

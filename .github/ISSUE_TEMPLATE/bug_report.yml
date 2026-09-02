@@ -1,0 +1,75 @@
+name: Bug report
+description: Report a reproducible problem in Cursor Office
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Do not include prompts, responses, transcript files, credentials, private source code, or other sensitive content.
+  - type: input
+    id: version
+    attributes:
+      label: Cursor Office version
+      description: Run `cursor.cmd --list-extensions --show-versions | Select-String cursor-office`.
+      placeholder: cursor-office.cursor-office@0.1.49
+    validations:
+      required: true
+  - type: input
+    id: cursor-version
+    attributes:
+      label: Cursor version
+      placeholder: 3.x.x
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Installation or startup
+        - Cursor Hooks or agent detection
+        - Window or team hierarchy
+        - 3D rendering or animation
+        - Navigation or collisions
+        - Models, tokens, or activity data
+        - Privacy or local storage
+        - Build, tests, or packaging
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Explain the actual and expected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Open ...
+        2. Run ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Privacy-safe diagnostics
+      description: Add relevant Cursor Office Output lines, window count, filter, character state, and approximate time. Redact private data.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: I reloaded every open Cursor window after updating the extension.
+          required: true
+        - label: I checked the existing issues and troubleshooting guide.
+          required: true
+        - label: I removed prompts, responses, transcripts, credentials, and private source code from this report.
+          required: true

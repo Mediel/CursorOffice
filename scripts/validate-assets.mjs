@@ -31,32 +31,32 @@ for (const modelPath of runtimeFiles) {
   try {
     manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
   } catch (error) {
-    errors.push(`${relativeModel}: chybí nebo nelze načíst manifest ${relative(repositoryRoot, manifestPath)} (${error.message})`);
+    errors.push(`${relativeModel}: manifest is missing or unreadable: ${relative(repositoryRoot, manifestPath)} (${error.message})`);
     continue;
   }
 
   for (const field of requiredManifestFields) {
     if (manifest[field] === undefined || manifest[field] === '') {
-      errors.push(`${relativeModel}: manifest neobsahuje povinné pole '${field}'`);
+      errors.push(`${relativeModel}: manifest is missing the required '${field}' field`);
     }
   }
   if (!Number.isInteger(manifest.triangles) || manifest.triangles < 0) {
-    errors.push(`${relativeModel}: 'triangles' musí být nezáporné celé číslo`);
+    errors.push(`${relativeModel}: 'triangles' must be a non-negative integer`);
   }
   if (!Array.isArray(manifest.textures)) {
-    errors.push(`${relativeModel}: 'textures' musí být pole`);
+    errors.push(`${relativeModel}: 'textures' must be an array`);
   }
 
   const header = Buffer.alloc(12);
   const model = await readFile(modelPath);
   model.copy(header, 0, 0, Math.min(model.length, header.length));
   if (header.toString('ascii', 0, 4) !== 'glTF' || header.readUInt32LE(4) !== 2) {
-    errors.push(`${relativeModel}: soubor není platný GLB verze 2`);
+    errors.push(`${relativeModel}: file is not a valid GLB version 2 asset`);
   }
 }
 
 if (errors.length > 0) {
-  console.error(`Asset validation selhala (${errors.length}):`);
+  console.error(`Asset validation failed (${errors.length}):`);
   errors.forEach(error => console.error(`- ${error}`));
   process.exitCode = 1;
 } else {

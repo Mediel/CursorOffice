@@ -1,182 +1,188 @@
-# Diagnostika a řešení problémů
+# Troubleshooting
 
-## Nejdřív ověřte verzi a reload
+## Verify the version and reload first
 
-Nejčastější příčinou zdánlivě neopraveného chování je starý extension host nebo starý C# proces v jednom z několika otevřených Cursor oken.
+The most common cause of apparently stale behavior is an old extension host or C# process in one of several open Cursor windows.
 
 ```powershell
 cursor.cmd --list-extensions --show-versions | Select-String cursor-office
 ```
 
-Po aktualizaci spusťte `Developer: Reload Window` v každém otevřeném Cursor okně. Reload pouze záložky Cursor Office nestačí, protože lokální host vlastní celý extension host okna.
+After an upgrade, run `Developer: Reload Window` in every open Cursor window. Reloading only the Cursor Office tab is not enough because each window's extension host owns its local C# process.
 
-Aktuální očekávaná verze je `cursor-office.cursor-office@0.1.49`.
+The version in the current repository is `cursor-office.cursor-office@0.1.49`.
 
-## Kancelář se neotevře nebo zůstane prázdná
+## The office does not open or stays empty
 
-1. Otevřete `View: Toggle Output` a vyberte kanál `Cursor Office`.
-2. Hledejte řádek `host.ready` nebo chybu při nalezení/spuštění hostu.
-3. Ověřte, že nastavení `cursorOffice.hostPath` není vyplněné starou cestou. Pro instalovanou VSIX má být obvykle prázdné.
-4. Spusťte `Developer: Reload Window`.
-5. Znovu spusťte `Cursor Office: Open Office`.
+1. Run `View: Toggle Output` and select the `Cursor Office` channel.
+2. Look for `host.ready` or a host-discovery/startup error.
+3. Make sure `cursorOffice.hostPath` does not point to an old build. It should normally be empty for an installed VSIX.
+4. Run `Developer: Reload Window`.
+5. Run `Cursor Office: Open Office` again.
 
-Webview při prázdném hostu záměrně nevytváří demo agenty. Samotný majitel bez pracovních postav tedy může být správný stav.
+The installed Webview intentionally creates no fake demo agents when the host is empty. Seeing only the owner can therefore be correct.
 
-## Vidím méně manažerů než otevřených Cursor oken
+## Fewer managers appear than open Cursor windows
 
-Manažer vzniká z heartbeat aktivované extension, nikoli z výčtu procesů operačního systému.
+A manager comes from an activated extension heartbeat, not from enumerating operating-system processes.
 
-- Ověřte, že je Cursor Office nainstalovaný ve stejné uživatelské instalaci Cursoru.
-- V každém okně spusťte `Developer: Reload Window`; tím se extension aktivuje a začne zapisovat heartbeat.
-- Nastavte filtr `Všechna okna`.
-- Počkejte dva až tři heartbeat cykly, tedy přibližně 4–6 sekund.
-- Okno bez živého extension-host procesu se vyřadí okamžitě; heartbeat starší než 7 sekund expiruje i při nečitelném PID.
+- Confirm Cursor Office is installed in the same user installation of Cursor.
+- Run `Developer: Reload Window` in every window so the extension activates and begins heartbeats.
+- Select the `All windows` filter.
+- Wait two or three heartbeat cycles, about 4–6 seconds.
+- A record with a dead extension-host PID is removed immediately; an unreadable PID still expires after the seven-second lease.
 
-Více oken stejného repozitáře má více manažerů. Krátký suffix v názvu je rozlišuje.
+Multiple windows for one repository should produce multiple managers with short distinguishing suffixes.
 
-## Po znovuotevření okna krátce vidím dva stejné manažery
+## A reopened window briefly creates a duplicate manager
 
-Od verze `0.1.24` heartbeat obsahuje PID extension hostu. Mrtvý proces se z registru odstraní bez čekání na celou lease a nový runtime identifikátor stejného workspace převezme existující vizuální postavu, její pozici a obsazené místo. Dvě skutečně současně otevřená okna stejného repozitáře se nadále zobrazují jako dva manažeři.
+Current heartbeats include the extension-host PID. A dead process is removed without waiting for the full lease, and a new runtime identity for the same logical workspace can inherit the existing character, position, and reservation. Two genuinely live windows with the same workspace remain distinct.
 
-Pokud dvojník přetrvá, ověřte `0.1.24` a proveďte `Developer: Reload Window` ve všech oknech; stará verze extension totiž zapisuje heartbeat bez PID a její Webview neumí vizuální identitu převázat.
+If the duplicate persists, verify version `0.1.49` and reload every window. An older extension may still publish incomplete heartbeats or lack visual identity rebinding.
 
-## Manažer existuje, ale chat se nezobrazí
+## A manager exists but its chat does not
 
-Manažer představuje okno a existuje i bez chatu. Chat se objeví až po rozpoznané aktivitě nebo nalezení relevantních lokálních metadat.
+A manager represents a window and exists without a chat. A chat appears after detected activity or relevant local metadata.
 
-1. Ověřte, že jsou nainstalované globální hooky příkazem `Cursor Office: Install Global Hooks`.
-2. Odešlete nový prompt, nestačí pouze otevřít starou záložku chatu.
-3. Ověřte, že prompt byl odeslán v zaměřeném okně se správným workspace.
-4. Pokud mají dvě okna stejné workspace a žádné není jednoznačně zaměřené, chat může skončit ve filtru `Nezařazené`.
-5. Starý chat mimo počáteční fallback lookback se záměrně nemusí objevit, dokud nevznikne nová aktivita.
+1. Install the global Hooks with `Cursor Office: Install Global Hooks`.
+2. Submit a new prompt; merely opening an old chat tab is not enough.
+3. Confirm the prompt was sent from the focused window with the expected workspace.
+4. If several windows share the workspace and none is unambiguously focused, check `Unassigned`.
+5. A chat outside the fallback lookback may remain absent until new activity occurs.
 
-## Cursor pracuje, ale postava je `idle`
+## Cursor is working but the character is idle
 
-Když Cursor v editoru opravdu pracuje a postava v kanceláři sedí jako `idle` (nebo tým vůbec nevznikne), nejde o autonomii Webview. Chybí důkaz z hooku, nebo se workspace z URI kořene nespároval s heartbeat okna.
+If Cursor is visibly working while the character is `idle`, evidence is missing from Hooks or window/workspace correlation failed.
 
-Nejdřív rozlište skutečný hook a fallback:
+First distinguish Hook activity from fallback:
 
-- Hook události se obvykle projeví během stovek milisekund.
-- Fallback metadata označují práci po změně transcript souboru po dobu 3 minut. Podagent zůstává u stolu až 8 minut, pokud se ještě hýbe rodičovský transcript.
-- Dlouhý vzdálený výpočet nebo tool call nemusí transcript průběžně zapisovat. Pokud jeho lifecycle hook daná verze Cursoru neposlala, fallback nemá bezpečný důkaz pokračující práce.
+- Hook events normally appear within hundreds of milliseconds.
+- Transcript metadata shows work for three minutes after a file change.
+- A subagent can remain active for up to eight minutes while its parent transcript changes.
+- A long remote computation or tool call may not update a transcript. If that Cursor version also omits the matching lifecycle Hook, Cursor Office has no safe evidence that work continues.
 
-Zkontrolujte:
+Check:
 
-1. `Cursor Office: Install Global Hooks` a poté `Developer: Reload Window` v každém okně. Starší instalace nemusí mít v `~/.cursor/hooks.json` novější události `afterFileEdit` a `preCompact`; příkaz spravované položky doplní.
-2. Výstupní kanál `Cursor Office` — hledejte `host.ready` a chyby spoolu.
-3. Zda v `%LOCALAPPDATA%/CursorOffice/events-v3` vznikají nové malé JSON soubory při promptu, nástroji, úpravě souboru nebo kompresi kontextu. Bez nových souborů hook do kanceláře nic neposlal.
-4. V souboru události zkontrolujte `workspacePath` a korelaci okna. Cursor 3.18 posílá `workspace_roots` na Windows jako URI (`/c:/Users/...`). Bridge je musí převést na běžnou filesystem cestu (`C:\Users\...`). Tvar `C:\c:\Users\...` nebo prázdný `workspacePath` znamená, že URI kořen se nespároval s heartbeat okna a chat zůstane nezařazený nebo `idle`.
-5. Ověřte, že prompt šel z okna, jehož workspace kořeny po normalizaci sedí na heartbeat v `%LOCALAPPDATA%/CursorOffice/windows-v1`.
+1. Run `Cursor Office: Install Global Hooks`, then `Developer: Reload Window` in every window. Reinstalling updates managed Hook entries such as `afterFileEdit` and `preCompact`.
+2. Inspect the `Cursor Office` Output channel for `host.ready` and spool errors.
+3. Confirm that new small JSON files appear in `%LOCALAPPDATA%/CursorOffice/events-v3` when submitting prompts, using tools, editing files, or compacting context.
+4. Inspect only normalized metadata in one event and verify `workspacePath`. Cursor 3.18 may emit `/c:/Users/...`; the bridge must normalize it to `C:\Users\...`. A value such as `C:\c:\Users\...` or an empty path prevents safe window matching.
+5. Confirm that the normalized workspace matches a live heartbeat under `%LOCALAPPDATA%/CursorOffice/windows-v1`.
 
-Soubory v `events-v3` nemažte během testu: jde o desetiminutový broadcast pro všechny současné hosty a jejich přítomnost po přečtení je normální.
+Do not delete `events-v3` during this test. It is a ten-minute broadcast for all concurrent hosts, and files remaining after a read are expected.
 
-## Kancelář je plná pracujících agentů, ale v Cursoru nikdo neběží
+## The office is full of working agents after Cursor stopped
 
-Activity log obnovuje poslední snapshot každého ID. Stav `working` dříve neměl TTL, takže tiché chaty a transcript fallback bez `windowId` zůstaly u stolů i po restartu. Od této opravy host před `agents.snapshot` i každých 5 sekund:
+The activity log restores the last snapshot for every known identity. Current hosts clean stale work evidence both before `agents.snapshot` and every five seconds:
 
-- shodí `working` bez čerstvého důkazu práce (3 minuty, podagent až 8 minut při čerstvém rodiči) na `idle` bez posunu `lastActivityAt`,
-- teprve potom uplatní idle/waiting retenci a staré identity odstraní.
+- `working` without recent evidence becomes `idle` after three minutes, or up to eight minutes for a subagent with a fresh parent;
+- the demotion does not move `lastActivityAt`; and
+- idle/waiting retention then removes old identities.
 
-Po aktualizaci hostu spusťte `Developer: Reload Window` v každém Cursor okně. Samotný reload záložky kanceláře starý proces nevymění. Pokud po reloadu přetrvá jediný čerstvý chat, jde o aktuální fallback nebo hook, ne o historický ghost.
+After upgrading, run `Developer: Reload Window` in every Cursor window. Reloading the Webview tab alone does not replace an old host. A single remaining recent chat may represent current fallback evidence rather than a historical ghost.
 
-## Postava stále ukazuje práci po dokončení
+## A character still shows work after completion
 
-- Skutečný `afterAgentResponse`, `subagentStop`, `stop` nebo failure hook má stav ukončit.
-- Pokud chybí terminální hook, fallback nebo host evidenční okno po 3 minutách přepne `working` na `idle`.
-- Aktivní podagent záměrně drží rodičovský chat ve stavu koordinace.
-- Frontovaný handoff může dočasně odložit odchod dokončeného subagenta.
-- Otevřená kancelář ve starém nereloadovaném okně může používat starý host; reloadujte všechna okna.
+- `afterAgentResponse`, `subagentStop`, `stop`, or a failure Hook should end work precisely.
+- When a terminal Hook is missing, fallback expiry demotes `working` to `idle` after the evidence window.
+- An active subagent intentionally keeps its parent chat in a coordination state.
+- A queued handoff can delay visual retirement of a completed subagent.
+- An unreloaded Cursor window can still run an older host; reload all windows.
 
-## Chat nebo subagent neodejde
+## A chat or subagent does not leave
 
-Pouhá neviditelná záložka není spolehlivá Cursor lifecycle událost. Přibližné výchozí chování:
+An invisible chat tab is not a reliable lifecycle event. Current approximate defaults are:
 
-- dokončený subagent má volný režim a odchází zhruba po 48–90 sekundách,
-- zavřené Cursor okno přepne k němu přiřazené chaty do `offline`; hlavní chat odejde zhruba po 28 sekundách a subagent po 12 sekundách,
-- idle nebo `waitingForUser` hlavní chat může host držet až 30 minut,
-- `working` bez nového hooku ani transcript zápisu po 3 minutách přejde na `idle`,
-- dokončený hlavní snapshot má host retenci 20 minut, ale vizuální postava může po terminálním signálu odejít dříve,
-- rozhovor, čekání ve dveřích nebo návrat na původní místo může odchod posunout,
-- čerstvá aktivita stejného ID odchod správně ruší.
+- completed subagent free time and exit after about 48–90 seconds;
+- closed-window primary chat marked `offline` and retained for about 28 seconds;
+- closed-window subagent retained for about 12 seconds;
+- idle or `waitingForUser` main chat retained for up to 30 minutes;
+- work without fresh Hook or transcript evidence demoted after three minutes;
+- completed primary snapshot retained by the host for 20 minutes, although the visual worker may leave sooner;
+- queued conversation, door wait, or return to a previous POI may delay departure; and
+- new activity with the same identity correctly cancels departure.
 
-Pokud počet postav dlouhodobě roste, poznamenejte si jejich jména, stav a krátká ID. Důležité je rozlišit několik skutečných instancí stejné role od duplikované identity.
+If character count grows indefinitely, record names, states, kinds, and short IDs. Several real instances of one role must be distinguished from duplicate identity.
 
-## Model je „neuveden“
+## Model is unknown
 
-To není automaticky chyba. Cursor Office zobrazí model pouze tehdy, když jej poskytne hook nebo jiný přesný runtime zdroj. Manažer okna nemá vlastní model; může pouze agregovat modely členů týmu.
+This is not automatically a bug. Cursor Office displays a model only when a Hook or another precise runtime source supplies it. A window manager has no model of its own and may only summarize team models.
 
-Model se nedoplňuje podle právě vybraného modelu v UI, protože jedna konverzace, background agent a jednotliví subagenti mohou použít různé modely.
+The extension does not copy the currently selected UI model because one conversation, background agent, and its subagents may use different models.
 
-## Tokeny jsou prázdné nebo se nezvyšují
+## Tokens are empty or do not increase
 
-Veřejný Cursor Hooks kontrakt **účtované tokeny negarantuje**. Ledger zapisuje pouze generační čítače skutečně dodané runtime událostí a jen s `generation_id`. Proto:
+The public Cursor Hooks contract does not guarantee billed token counters. The ledger records generation counters only when supplied by the runtime together with `generation_id`.
 
-- chybějící tokeny nejsou nula,
-- Cursor Office je neodhaduje z délky textu,
-- nezobrazuje cenu bez spolehlivé cenové a modelové informace,
-- manažer ukazuje workspace agregaci, nikoli vlastní spotřebu,
-- jedna generace se deduplikuje a průběžné hodnoty se slučují maximem,
-- zaplnění kontextu z `preCompact` není tokenový ledger; chybí-li řádek „kontextové okno“, hook zatím `preCompact` neposlal nebo nenesl `context_tokens` / `context_window_size` / `context_usage_percent`.
+Therefore:
 
-Lokální ledger je `%LOCALAPPDATA%/CursorOffice/usage-ledger.json`. Neobsahuje prompt, odpověď ani kontextové okno. Lokální activity log je `%LOCALAPPDATA%/CursorOffice/activity-log.ndjson`; timeline nese jen `kind`, volitelný `tool`, čas a `status`.
+- missing tokens are not zero;
+- usage is not estimated from text length;
+- price is not calculated without authoritative model and price evidence;
+- a manager shows workspace aggregate rather than personal generation usage;
+- each generation is deduplicated and progressive values merge by maximum; and
+- context-window fill from `preCompact` is separate from the token ledger.
 
-## Jména chatů jsou jen krátká ID
+The ledger is `%LOCALAPPDATA%/CursorOffice/usage-ledger.json`. It contains no prompt, response, or context contents. The activity log is `%LOCALAPPDATA%/CursorOffice/activity-log.ndjson`; timeline entries contain only kind, optional tool, time, and status.
 
-Na Windows se titul dohledává read-only z `%APPDATA%/Cursor/User/globalStorage/state.vscdb`. Bezpečný fallback nastane, když:
+## Chat names are short IDs
 
-- `conversation_id` nemá odpovídající `composerHeaders` řádek,
-- Cursor databázi právě nahrazuje nebo zamyká,
-- schéma konkrétní verze titul neposkytne,
-- název ještě nebyl v Cursoru vytvořen.
+On Windows, titles are resolved read-only from `%APPDATA%/Cursor/User/globalStorage/state.vscdb`. Safe fallback occurs when:
 
-Další aktivita titul znovu zkusí načíst. Zprávy a transcript se kvůli názvu nečtou.
+- `conversation_id` has no `composerHeaders` row;
+- Cursor is replacing or locking the database;
+- that Cursor version does not provide the expected title schema; or
+- Cursor has not generated a title yet.
 
-## Dvě postavy stojí v sobě nebo se zaseknou ve dveřích
+Later activity retries the lookup. Messages and transcripts are not read to obtain a title.
 
-Současná navigace používá pevnou kolizní mapu, FIFO rezervaci dveří, dynamickou separaci a watchdog trasy. Krátké čekání před dveřmi je očekávané; průchod nábytkem nebo trvalé poskakování ne. Watchdog zůstává aktivní i pro postavu dávající přednost a při zablokování plánuje novou trasu, v níž jsou ostatní postavy dočasné kruhové překážky. Když lokální úkrok ani delší objížďka nejsou v hustém shluku dostupné, watchdog na omezenou dobu uvolní dávající postavu, aby separace vytvořila prostor; postava proto nesmí zůstat pozastavená trvale.
+## Characters overlap or become stuck in doors
 
-Pro reprodukci si poznamenejte:
+Navigation uses a static collision map, FIFO door reservation, dynamic separation, and a route-progress watchdog. A brief wait before a door is expected; walking through furniture or permanent jitter is not.
 
-- místnost a konkrétní dveře,
-- počet postav,
-- zda některá seděla nebo právě vstávala,
-- jména a stavy kolidujících postav,
-- zda byl aktivní filtr okna,
-- přibližný čas, aby šel dohledat odpovídající lifecycle.
+The watchdog remains active while a character yields. When blocked, it replans with other characters represented as temporary circular obstacles. If a dense cluster offers no safe local or long detour, the system briefly releases the yielding character so separation can create space; the character must not remain paused forever.
 
-Dočasně lze změnit úhel kamery nebo filtr, ale filtr nemění fyzický stav a problém sám neopravuje. Watchdog má zaseknutou trasu automaticky přepočítat.
+For reproduction, record:
 
-## Majitel se nehýbe pomocí WASD
+- room and exact doorway;
+- number of characters;
+- whether anyone was sitting or standing up;
+- names and states of colliding characters;
+- active window filter; and
+- approximate time.
 
-- Nejprve majitele kliknutím vyberte; jeho detail zůstane otevřený.
-- Klikněte do canvasu kanceláře, aby měl klávesový fokus.
-- `WASD` se vztahuje ke směru kamery, nikoli k pevným světovým osám.
-- `Esc` výběr zruší a potom stejné klávesy opět pohybují kamerou.
-- Když majitel sedí, nejprve přehraje vstávání; pohyb začne po dokončení přechodu.
+Changing camera angle or filter can help observation but does not change the physical state or fix the cause.
 
-Pokud se postava pohybuje, ale nohy zůstávají nehybné, ověřte verzi `0.1.49` a reload všech oken.
+## The owner does not move with WASD
 
-## Kamera je mimo kancelář nebo má špatný úhel
+- Select the owner first; its inspector should remain open.
+- Click the office canvas so it has keyboard focus.
+- `WASD` uses camera-relative direction, not fixed world axes.
+- `Esc` deselects the owner; the same keys then move the camera.
+- A seated owner completes the stand-up transition before moving.
 
-Stiskněte `Home` nebo `0`. Tím se obnoví výchozí pozice a cíl kamery. Tažení stisknutým kolečkem nebo pravým tlačítkem posouvá pohled; levé tlačítko jej otáčí.
+If the character moves while legs remain still, verify version `0.1.49` and reload every window.
 
-## Po aktualizaci vidím staré chování
+## The camera is outside the office or at a bad angle
 
-1. Ověřte instalovanou verzi přes Cursor CLI.
-2. Reloadujte všechna otevřená okna, nejen to s kanceláří.
-3. V Output kanálu `Cursor Office` ověřte verzi nově spuštěného hostu.
-4. Pokud byly hooks dříve nainstalované, aktivace extension obnoví bridge ve stabilní cestě.
-5. Verzovaný `events-v3` chrání nový host před starými destruktivními hosty, ale staré okno bude až do reloadu stále vykreslovat svůj starý kód.
+Press `Home` or `0` to restore the default position and target. Middle/right drag pans; left drag orbits.
 
-## Co přiložit k hlášení chyby
+## Old behavior remains after an update
 
-- verzi Cursoru a Cursor Office,
-- počet otevřených Cursor oken a jejich workspace,
-- filtr zvolený v kanceláři,
-- jméno, stav a krátké ID dotčené postavy,
-- zda šlo o hlavní chat nebo subagenta,
-- přibližný čas problému,
-- relevantní řádky z Output kanálu `Cursor Office` bez soukromého obsahu,
-- screenshot kanceláře.
+1. Verify the installed extension version with Cursor CLI.
+2. Reload every open window, not only the one showing the office.
+3. Check the new host version in the `Cursor Office` Output channel.
+4. If Hooks were already installed, extension activation refreshes the bridge at its stable path.
+5. `events-v3` protects a new broadcast host from old destructive hosts, but an unreloaded window still renders its old extension code.
 
-Nepřikládejte prompty, odpovědi, transcript soubory ani zdrojový kód, pokud nejsou pro konkrétní chybu nezbytné.
+## Information to include in a bug report
+
+- Cursor and Cursor Office versions;
+- number of open Cursor windows and their workspace labels;
+- office filter;
+- affected character name, state, kind, and short ID;
+- approximate time;
+- relevant privacy-safe lines from the `Cursor Office` Output channel; and
+- a screenshot with private details removed.
+
+Do not attach prompts, responses, transcripts, credentials, private source code, or tool output unless the maintainers explicitly confirm that a narrowly scoped item is essential and provide a safe private channel.

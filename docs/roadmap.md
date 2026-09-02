@@ -1,69 +1,67 @@
-# Roadmapa
+# Roadmap
 
-## M0 – základ solution
+## M0 — solution foundation
 
-- [x] vlastní greenfield repozitář,
-- [x] `.slnx` pro Visual Studio,
-- [x] .NET vrstvy a testovací projekt,
-- [x] TypeScript `.esproj` projekty,
-- [x] architektura, protokol a pravidla assetů,
-- [x] demonstrační události agentů.
+- [x] Original greenfield repository
+- [x] Visual Studio `.slnx`
+- [x] Layered .NET projects and tests
+- [x] TypeScript `.esproj` projects
+- [x] Architecture, protocol, and asset policy
+- [x] Demonstration agent events
 
-## M1 – editorová záložka
+## M1 — editor tab
 
-- [x] spustit Extension Development Host,
-- [x] otevřít příkazem záložku `Cursor Office`,
-- [x] zobrazit vlastní procedurální Three.js kancelář,
-- [x] propojit extension s C# hostem,
-- [x] zobrazit tři demonstrační agenty,
-- [x] přidat majitele, stavové zóny, detail a kamerové ovládání,
-- [x] rozdělit Webview na svět, postavy, navigaci, kontrakty a HUD,
-- [x] přidat vlastní A* pohyb mezi body zájmu,
-- [x] serializovat provoz v úzkých dveřích a zabránit deadlocku více postav u futer,
-- [x] přidat pracovní sezení, volnočasové cíle, stavové emoce a ovládání majitele,
-- [x] přidat reprodukovatelné balení `.vsix` pomocí `@vscode/vsce`,
-- [x] přibalit .NET host a hook bridge,
-- [x] nainstalovat extension a globální hooks do lokálního Cursoru.
+- [x] Extension Development Host
+- [x] `Cursor Office` editor tab
+- [x] Original procedural Three.js office
+- [x] Extension-to-host integration
+- [x] Owner, state zones, inspector, and camera controls
+- [x] Webview split into world, character, navigation, contracts, and HUD responsibilities
+- [x] A* navigation between points of interest
+- [x] Serialized narrow-door traffic and deadlock prevention
+- [x] Work seating, idle destinations, state emotions, and owner control
+- [x] Reproducible VSIX packaging with `@vscode/vsce`
+- [x] Bundled .NET host and Hook bridge
 
-## M2 – skutečné Cursor události
+## M2 — real Cursor events
 
-- [x] navrhnout a implementovat pasivní Cursor Hooks bridge,
-- [x] filtrovat prompt, reasoning, obsah souborů a tool output už v hook procesu,
-- [x] ověřit end-to-end převod hook → lokální spool → host → `agent.changed`,
-- [x] rozlišit souběžné instance podagentů podle lokálních metadat transcript souborů,
-- [x] normalizovat stavy agentů a hierarchii primary/subagent,
-- [x] ukládat lokální historii,
-- [x] zachovat pozici majitele při aktualizaci projekce a obnově Webview,
-- [x] řízeně odvádět a odstraňovat ukončené agenty pomocí lifecycle TTL,
-- [x] ukládat přesně oznámenou tokenovou spotřebu po workspace/modelu/dni bez cloud API,
-- [x] převést chat, delegaci a handoff na frontované sociální interakce postav bez čtení obsahu konverzace,
-- [x] distribuovat hook události všem současným Cursor oknům bez závodu nad jedním spool souborem,
-- [x] zdokumentovat uživatelské ovládání, organizační model, lifecycle, časování a diagnostiku,
-- [x] obnovit lokální historii po úplném restartu extension.
+- [x] Passive Cursor Hooks bridge
+- [x] Early filtering of prompts, reasoning, file contents, and tool output
+- [x] End-to-end Hook → spool → host → `agent.changed` flow
+- [x] Distinct concurrent subagent instances from transcript metadata
+- [x] Normalized primary/subagent hierarchy and states
+- [x] Local activity history
+- [x] Owner-position persistence across projection updates and Webview restoration
+- [x] Lifecycle TTL and controlled retirement
+- [x] Exact local token aggregation by workspace, model, and day
+- [x] Event-driven social interactions without reading conversation contents
+- [x] Multi-window broadcast delivery without single-consumer races
+- [x] User, lifecycle, timing, and troubleshooting documentation
+- [x] Local-history restoration after a full extension restart
 
-## M3 – řízení agentů
+## M3 — agent control
 
-- [ ] Cursor ACP adaptér,
-- [ ] spuštění a zastavení agenta,
-- [ ] předání dalšího úkolu,
-- [ ] schvalování oprávnění.
+- [ ] Cursor ACP adapter
+- [ ] Start and stop an agent
+- [ ] Assign follow-up work
+- [ ] Permission approval flow
 
-## M4 – vlastní 3D produkce
+## M4 — original production 3D assets
 
-- [ ] finální výtvarný směr,
-- [ ] vlastní modulární kancelář,
-- [ ] vlastní rigované postavy,
-- [ ] sada animací a výrazů,
-- [ ] optimalizace GLB, textur a instancingu.
+- [ ] Final art direction
+- [ ] Original modular office
+- [ ] Original rigged characters
+- [ ] Animation and expression set
+- [ ] GLB, texture, and instancing optimization
 
-## M5 – funkční parita pro Cursor
+## M5 — functional parity for Cursor
 
-- [ ] inspector s historií, technickými logy a tool calls,
-- [ ] kanban a časová osa činnosti,
-- [x] základní vizualizace hierarchie hlavní konverzace/podagent,
-- [ ] schvalovací tok pro `waitingForUser`,
-- [ ] navmesh odvozený z finální kanceláře,
-- [ ] rigované postavy se stavovým animation blendingem,
-- [x] procedurální stavový automat, POI rezervace a plynulé přechody sednutí/vstávání,
-- [x] lokální crowd avoidance s boční objížďkou a watchdogem zaseknutých tras,
-- [ ] stabilní výkon pro desítky souběžných agentů.
+- [ ] Inspector with history, technical logs, and tool calls
+- [ ] Kanban and activity timeline
+- [x] Main-conversation/subagent hierarchy
+- [ ] `waitingForUser` approval flow
+- [ ] Navmesh derived from the final office
+- [ ] Rigged characters with state-driven animation blending
+- [x] Procedural state machine, POI reservation, and smooth sit/stand transitions
+- [x] Local crowd avoidance and stuck-route watchdog
+- [ ] Stable performance with dozens of concurrent agents

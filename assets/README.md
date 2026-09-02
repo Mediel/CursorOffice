@@ -1,28 +1,30 @@
-# Pravidla pro 3D a grafické assety
+# 3D and graphic asset policy
 
-Produkční assety Cursor Office budou vlastní. Adresář nesmí obsahovat modely, textury, animace ani environment mapy převzaté z The Delegation.
+Production Cursor Office assets must be original or have a verified compatible license. This directory must not contain models, textures, animations, or environment maps copied from The Delegation.
 
-## Povinná evidence
+## Required provenance
 
-Každý externí asset musí mít vedle souboru záznam obsahující:
+Every external asset must have a nearby manifest recording:
 
-- autora a zdroj,
-- datum získání,
-- přesnou licenci,
-- povolené způsoby distribuce a úprav,
-- provedené změny.
+- author and source;
+- acquisition date;
+- exact license;
+- permitted distribution and modification; and
+- modifications made for Cursor Office.
 
-Preferované jsou vlastní assety a CC0. Asset s omezením `NonCommercial`, `NoDerivatives` nebo nejasnou licencí se do distribuovaného rozšíření nesmí přidat.
+Original assets and CC0 are preferred. Assets restricted by `NonCommercial`, `NoDerivatives`, or an unclear license must not be included in the distributed extension.
 
-## Technické konvence
+Brand assets are not automatically covered by the repository's MIT License. See [NOTICE.md](../NOTICE.md) and any asset-specific README.
 
-- formát runtime modelů: GLB,
-- souřadnice: Y nahoru, jeden unit = jeden metr,
-- modely musí mít stabilní názvy uzlů,
-- POI uzly používají tvar `poi-{type}-{id}`,
-- navmesh je samostatně pojmenovaný uzel,
-- zdrojové Blender soubory budou oddělené od optimalizovaných runtime exportů.
+## Technical conventions
 
-## Automatická kontrola
+- Runtime model format: GLB
+- Coordinates: Y-up, one unit equals one meter
+- Stable model node names
+- POI nodes named `poi-{type}-{id}`
+- Navmesh in a separately named node
+- Source Blender files separated from optimized runtime exports
 
-Příkaz `pnpm assets:validate` kontroluje hlavičku GLB 2 a vyžaduje pro každý runtime model odpovídající licenční manifest. Je také součástí `pnpm check` a `pnpm build`.
+## Automated validation
+
+`pnpm assets:validate` checks the GLB 2 header and requires a matching license manifest for every runtime model. The command is part of both `pnpm check` and `pnpm build`.

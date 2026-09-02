@@ -234,7 +234,7 @@ public sealed class AgentMonitorInteractionTests
             "General Purpose child",
             "CursorOffice · Subagent",
             AgentStatus.Working,
-            "CursorOffice: aktivní",
+            "CursorOffice: active",
             null,
             DateTimeOffset.UtcNow,
             AgentKind.Subagent,
@@ -268,7 +268,7 @@ public sealed class AgentMonitorInteractionTests
             "General Purpose child",
             "CursorOffice · Subagent",
             AgentStatus.Working,
-            "CursorOffice: aktivní",
+            "CursorOffice: active",
             null,
             DateTimeOffset.UtcNow,
             AgentKind.Subagent,
@@ -290,7 +290,7 @@ public sealed class AgentMonitorInteractionTests
         Assert.Contains(snapshots, snapshot =>
             snapshot.Id == "primary-agent"
             && snapshot.Status == AgentStatus.Working
-            && snapshot.CurrentTask == "Cursor workspace: koordinuje aktivní podagenty");
+            && snapshot.CurrentTask == "Cursor workspace: coordinating active subagents");
     }
 
     [Fact]
@@ -371,7 +371,7 @@ public sealed class AgentMonitorInteractionTests
             "Primary Agent",
             "Cursor chat",
             AgentStatus.Working,
-            "CursorOffice: aktivní",
+            "CursorOffice: active",
             null,
             DateTimeOffset.Parse("2026-08-25T10:00:00Z"),
             model: "claude-opus-4-7",

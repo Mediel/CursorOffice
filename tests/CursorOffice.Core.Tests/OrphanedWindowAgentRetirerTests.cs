@@ -33,7 +33,7 @@ public sealed class OrphanedWindowAgentRetirerTests
             Assert.Equal(AgentStatus.Offline, agent.Status);
             Assert.False(agent.IsFallback);
             Assert.Equal(now, agent.LastActivityAt);
-            Assert.Equal("Baumueller-PA: okno bylo zavřeno", agent.CurrentTask);
+            Assert.Equal("Baumueller-PA: window closed", agent.CurrentTask);
         });
         Assert.DoesNotContain(retired, agent => agent.Id == "chat-b");
     }
@@ -89,7 +89,7 @@ public sealed class OrphanedWindowAgentRetirerTests
             id,
             "Cursor chat",
             status,
-            "Sample: aktivní",
+            "Sample: active",
             null,
             DateTimeOffset.Parse("2026-08-26T13:00:00Z"),
             kind,

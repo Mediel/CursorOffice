@@ -145,24 +145,24 @@ function labelTeamMembers(agents: OfficeBootstrap['agents']): OfficeBootstrap['a
     const suffix = (groupCounts.get(key) ?? 0) > 1
       ? ` · ${agent.id.replace(/^cursor-/i, '').slice(0, 6)}`
       : '';
-    const displayName = agent.displayName.startsWith('Manažer ')
+    const displayName = agent.displayName.startsWith('Manager ')
       ? agent.displayName
-      : `Manažer ${workspace}${suffix}`;
+      : `Manager ${workspace}${suffix}`;
     managerLabels.set(agent.id, displayName);
     return { ...agent, displayName };
   });
   const agentsById = new Map(managersDecorated.map(agent => [agent.id, agent]));
   const parentContext = (agent: OfficeBootstrap['agents'][number], visited = new Set<string>()): string => {
     if (!agent.parentAgentId || visited.has(agent.id)) {
-      return agent.workspace?.trim() || 'Nezařazený chat';
+      return agent.workspace?.trim() || 'Unassigned chat';
     }
     visited.add(agent.id);
     const parent = agentsById.get(agent.parentAgentId);
     if (!parent) {
-      return agent.workspace?.trim() || 'Nezařazený chat';
+      return agent.workspace?.trim() || 'Unassigned chat';
     }
     if (parent.kind !== 'subagent') {
-      return (managerLabels.get(parent.id) ?? parent.displayName).replace(/^Manažer\s+/u, '').trim();
+      return (managerLabels.get(parent.id) ?? parent.displayName).replace(/^Manager\s+/u, '').trim();
     }
     return `${parentContext(parent, visited)} · ${parent.displayName.trim()}`;
   };
@@ -206,8 +206,8 @@ if (vscodeApi) {
 } else {
   const demoBootstrap: OfficeBootstrap = {
     owner: {
-      displayName: 'Majitel',
-      role: 'Majitel kanceláře',
+      displayName: 'Owner',
+      role: 'Office owner',
       accent: '#f4b85c'
     },
     currentWindow: {
@@ -244,7 +244,7 @@ if (vscodeApi) {
         displayName: 'Alice',
         role: 'Developer',
         status: 'working',
-        currentTask: 'Připravuje extension host',
+        currentTask: 'Preparing the extension host',
         workspace: 'CursorOffice',
         windowId: 'demo-window-cursor-office',
         windowLabel: 'CursorOffice · DEMO1',
@@ -261,7 +261,7 @@ if (vscodeApi) {
         displayName: 'General Purpose b0b123',
         role: 'CursorOffice · General Purpose',
         status: 'waitingForUser',
-        currentTask: 'Analyzuje tok přihlášení a závislosti služby',
+        currentTask: 'Analyzing the sign-in flow and service dependencies',
         workspace: 'CursorOffice',
         windowId: 'demo-window-cursor-office',
         windowLabel: 'CursorOffice · DEMO1',
@@ -277,7 +277,7 @@ if (vscodeApi) {
         displayName: 'Ema',
         role: 'Test Engineer',
         status: 'completed',
-        currentTask: 'Ověřila doménový model',
+        currentTask: 'Verified the domain model',
         workspace: 'CursorOffice',
         windowId: 'demo-window-cursor-office',
         windowLabel: 'CursorOffice · DEMO1'
@@ -287,7 +287,7 @@ if (vscodeApi) {
         displayName: 'Dan',
         role: 'Backend Developer',
         status: 'working',
-        currentTask: 'Implementuje lokální bridge',
+        currentTask: 'Implementing the local bridge',
         workspace: 'Shop',
         windowId: 'demo-window-shop',
         windowLabel: 'Shop · DEMO2',
@@ -296,10 +296,10 @@ if (vscodeApi) {
       },
       {
         id: 'klara',
-        displayName: 'Klára',
+        displayName: 'Clara',
         role: 'Product Owner',
         status: 'waitingForUser',
-        currentTask: 'Čeká na schválení návrhu',
+        currentTask: 'Waiting for proposal approval',
         workspace: 'Shop',
         windowId: 'demo-window-shop',
         windowLabel: 'Shop · DEMO2'
@@ -309,7 +309,7 @@ if (vscodeApi) {
         displayName: 'Milan',
         role: 'Debugger',
         status: 'error',
-        currentTask: 'Řeší chybu integrace',
+        currentTask: 'Investigating an integration error',
         workspace: 'Shop',
         windowId: 'demo-window-shop',
         windowLabel: 'Shop · DEMO2'
@@ -319,7 +319,7 @@ if (vscodeApi) {
         displayName: 'Nina',
         role: 'Analyst',
         status: 'idle',
-        currentTask: 'Připravena na další úkol',
+        currentTask: 'Ready for the next assignment',
         workspace: 'Shop',
         windowId: 'demo-window-shop',
         windowLabel: 'Shop · DEMO2'
@@ -329,7 +329,7 @@ if (vscodeApi) {
         displayName: 'Ota',
         role: 'Developer',
         status: 'working',
-        currentTask: 'Kontroluje víceagentní běh',
+        currentTask: 'Checking a multi-agent run',
         workspace: 'Shop',
         windowId: 'demo-window-shop',
         windowLabel: 'Shop · DEMO2',
@@ -340,24 +340,24 @@ if (vscodeApi) {
         displayName: 'Pavel',
         role: 'Reviewer',
         status: 'completed',
-        currentTask: 'Dokončil kontrolu změn',
+        currentTask: 'Completed the change review',
         workspace: 'CursorOffice',
         windowId: 'demo-window-cursor-office',
         windowLabel: 'CursorOffice · DEMO1'
       },
       {
         id: 'sara',
-        displayName: 'Sára',
+        displayName: 'Sara',
         role: 'Researcher',
         status: 'waitingForUser',
-        currentTask: 'Čeká na doplnění kontextu',
+        currentTask: 'Waiting for more context',
         workspace: 'CursorOffice',
         windowId: 'demo-window-cursor-office',
         windowLabel: 'CursorOffice · DEMO1'
       }
     ],
     usage: {
-      total: { key: 'Celkem', inputTokens: 200_000, outputTokens: 18_000, cacheReadTokens: 90_000, cacheWriteTokens: 4_000, totalTokens: 312_000, requestCount: 14 },
+      total: { key: 'Total', inputTokens: 200_000, outputTokens: 18_000, cacheReadTokens: 90_000, cacheWriteTokens: 4_000, totalTokens: 312_000, requestCount: 14 },
       byWorkspace: [{ key: 'CursorOffice', inputTokens: 100_000, outputTokens: 9_000, cacheReadTokens: 50_000, cacheWriteTokens: 1_000, totalTokens: 160_000, requestCount: 7 }],
       byModel: [{ key: 'composer-2.5', inputTokens: 150_000, outputTokens: 12_000, cacheReadTokens: 70_000, cacheWriteTokens: 2_000, totalTokens: 234_000, requestCount: 9 }],
       byWorkspaceModel: [],
@@ -412,7 +412,7 @@ if (vscodeApi) {
         .map(agent => ({
           ...agent,
           status: 'completed' as const,
-          currentTask: 'Předal výsledek a chystá se odejít',
+          currentTask: 'Handed off the result and is preparing to leave',
           interactionKind: 'handoffCompleted' as const
         }))
     }

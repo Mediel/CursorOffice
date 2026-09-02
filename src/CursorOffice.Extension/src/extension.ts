@@ -25,9 +25,9 @@ export function activate(context: vscode.ExtensionContext): void {
         canSelectFolders: false,
         canSelectMany: false,
         filters: {
-          'Obrázky': ['png', 'jpg', 'jpeg', 'webp', 'gif']
+          'Images': ['png', 'jpg', 'jpeg', 'webp', 'gif']
         },
-        title: 'Vyberte logo kanceláře'
+        title: 'Select an office logo'
       });
       if (!selected?.[0]) {
         return;
@@ -38,19 +38,19 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
     vscode.commands.registerCommand('cursorOffice.installGlobalHooks', async () => {
       const choice = await vscode.window.showWarningMessage(
-        'Cursor Office přidá pasivní hooks do uživatelského ~/.cursor/hooks.json. Hooky nic neblokují a neposílají obsah promptů ani souborů.',
+        "Cursor Office will add passive Hooks to the user's ~/.cursor/hooks.json. The Hooks do not block actions or transmit prompt or file contents.",
         { modal: true },
-        'Nainstalovat'
+        'Install'
       );
-      if (choice !== 'Nainstalovat') {
+      if (choice !== 'Install') {
         return;
       }
       hookInstaller.install();
-      void vscode.window.showInformationMessage('Globální Cursor Office hooks jsou nainstalované pro všechna Cursor okna.');
+      void vscode.window.showInformationMessage('Global Cursor Office Hooks are installed for all Cursor windows.');
     }),
     vscode.commands.registerCommand('cursorOffice.uninstallGlobalHooks', () => {
       hookInstaller.uninstall();
-      void vscode.window.showInformationMessage('Globální Cursor Office hooks byly odebrány.');
+      void vscode.window.showInformationMessage('Global Cursor Office Hooks were removed.');
     }),
     vscode.window.registerWebviewPanelSerializer(OfficePanel.viewType, {
       async deserializeWebviewPanel(panel): Promise<void> {

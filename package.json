@@ -2,6 +2,12 @@
   "name": "cursor-office-workspace",
   "version": "0.1.0",
   "private": true,
+  "description": "Local 3D visualization of Cursor IDE agents.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Mediel/CursorOffice.git"
+  },
   "packageManager": "pnpm@11.19.0",
   "engines": {
     "node": ">=22.12.0"

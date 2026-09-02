@@ -136,8 +136,8 @@ public sealed class OfficeHookNormalizerTests : IDisposable
             """);
 
         Assert.Equal("working", hookEvent.Status);
-        Assert.Equal("SampleWorkspace: komprimuje kontext", hookEvent.CurrentTask);
-        Assert.Contains("kontext 85%", hookEvent.Detail, StringComparison.Ordinal);
+        Assert.Equal("SampleWorkspace: compacting context", hookEvent.CurrentTask);
+        Assert.Contains("context 85%", hookEvent.Detail, StringComparison.Ordinal);
         Assert.Contains("120000/128000", hookEvent.Detail, StringComparison.Ordinal);
         Assert.Contains("auto", hookEvent.Detail, StringComparison.Ordinal);
         Assert.Equal("claude-opus-4-7", hookEvent.Model);
@@ -163,7 +163,7 @@ public sealed class OfficeHookNormalizerTests : IDisposable
             }
             """);
 
-        Assert.Equal("SampleWorkspace: upravil Program.cs", hookEvent.CurrentTask);
+        Assert.Equal("SampleWorkspace: edited Program.cs", hookEvent.CurrentTask);
         Assert.DoesNotContain("secret", hookEvent.CurrentTask, StringComparison.Ordinal);
         Assert.DoesNotContain("secret", hookEvent.Detail, StringComparison.Ordinal);
         Assert.DoesNotContain("C:/work", hookEvent.CurrentTask, StringComparison.Ordinal);

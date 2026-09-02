@@ -1,20 +1,20 @@
-# Architektura
+# Architecture
 
-## Kontext
+## Context
 
-Cursor Office je desktopové rozšíření pro Cursor založené na VS Code Extension API. Editorová část musí běžet v Node.js extension hostu a grafická část ve Webview. Doménová a integrační logika je záměrně přesunuta do lokálního procesu napsaného v C#.
+Cursor Office is a desktop extension for Cursor built on the VS Code Extension API. Editor integration must run in the Node.js extension host and graphics must run in a Webview. Domain, lifecycle, persistence, and Cursor-integration logic is intentionally isolated in local C# processes.
 
-## Komponenty
+## Components
 
 ```text
 Cursor Hooks ─┐
               ├──> CursorOffice.Hook (.NET 10, passive) ──> local event spool
               │                                             │
-Cursor transcript metadata ──────────────────────────────────┤
+Transcript metadata ─────────────────────────────────────────┤
               ├──> CursorOffice.Host (.NET 10) <────────────┘
-Cursor ACP ───┘     ├── Infrastructure adapters
-                    ├── Application orchestration
-                    ├── Core agent model
+Cursor ACP ───┘     ├── infrastructure adapters
+  (planned)         ├── application orchestration
+                    ├── core agent model
                     ├── local token-usage ledger
                     └── local activity log
                                │
@@ -27,73 +27,123 @@ Cursor ACP ───┘     ├── Infrastructure adapters
                     CursorOffice.Webview (Three.js)
 ```
 
-## Vrstvy .NET
+## .NET layers
 
 ### CursorOffice.Core
 
-Čistý doménový model. Obsahuje identitu agenta, stav, druh `Primary/Subagent`, rodičovskou konverzaci, workspace, snapshot, `ModelParams`, generační `TokenUsage` a `ContextUsage` z `preCompact`. Nemá závislost na infrastruktuře ani UI.
+Pure domain model: agent identity, status, `Primary`/`Subagent` kind, parent conversation, workspace, snapshots, safe model parameters, generation `TokenUsage`, and `ContextUsage` from `preCompact`. It has no infrastructure or UI dependency.
 
 ### CursorOffice.Application
 
-Orchestrace případů užití. Převádí příchozí aktivity na aktuální snapshoty agentů a pracuje přes abstrakce zdrojů událostí. `AgentLifecycle` drží retenční TTL a evidenční okno pro tiché `working`; `OrphanedWindowAgentRetirer` označí chaty mrtvých heartbeat oken jako `offline`.
+Use-case orchestration. It converts incoming activity into current agent snapshots through event-source abstractions.
+
+`AgentLifecycle` owns retention TTLs and the evidence window for silent `working` states. `OrphanedWindowAgentRetirer` marks chats belonging to dead window heartbeats as `offline`.
 
 ### CursorOffice.Infrastructure
 
-Implementace okrajových adaptérů. Hook `workspace_roots` z Cursoru 3.18 na Windows přichází jako URI cesta `/c:/Users/...`; bridge ji před zápisem události převede na filesystem cestu, jinak se chat nespáruje s heartbeat okna a tým zůstane `idle`. `CursorHooksAgentEventSource` čte privacy-filtered lokální `events-v3` spool jako krátkodobý broadcast: každý současně běžící host má vlastní in-memory kurzor, úspěšné přečtení soubor nemaže a libovolný host uklízí až události starší než retenční okno. Verzovaný adresář zároveň brání starému single-consumer hostu z jiného Cursor okna v odcizení nové události. `CursorTranscriptAgentEventSource` pasivně sleduje pouze cestu, velikost a čas změny souborů v `~/.cursor/projects`. Druhý adaptér soubory neotevírá; UUID z názvu souboru používá k rozlišení hlavní relace a každé instance podagenta. Při aktivním podagentovi zahrne i starší rodičovský transcript a promítne rodiče jako pracujícího koordinátora; tříminutové fallback okno pokrývá pauzy mezi tool cally a podagent může zůstat aktivní až 8 minut, pokud se hýbe rodičovský transcript. Aktivní podagent drží rodiče ve `working` i po `afterAgentResponse`. Starší transcript fallback nesmí zrušit terminální hook stav; novější zápis do transcriptu může znovu nastavit `working` i po `stop`. Fallback `idle` smí shodit neterminální hook `working`, když chybí `stop` a soubor už není čerstvý. Po `offline` z mrtvého okna fallback bez nového `windowId` agenta neobnoví. `AgentLifecycle` sdílí retenční TTL a tříminutové evidenční okno pro `working`; obnovené snapshoty bez čerstvého důkazu práce přejdou do `idle` a teprve potom platí idle retence. `CompositeAgentEventSource` oba proudy slučuje. `CursorWindowPresenceDirectory` čte heartbeat lease z `windows-v1` se stejnou sedmisekundovou platností a kontrolou PID jako extension reporter. `LocalUsageLedger` deduplikuje runtimem oznámené **generační** tokeny podle generace, průběžné čítače stejné generace slučuje maximem, ukládá maximálně 50 000 záznamů a vytváří agregace podle úplné cesty workspace, modelu a dne. Chybějící spotřebu neodhaduje. Zaplnění kontextového okna z `preCompact` do ledgeru nepatří. `LocalActivityLog` je append-only NDJSON vedle ledgeru (`%LOCALAPPDATA%/CursorOffice/activity-log.ndjson`): drží poslední `AgentSnapshot` podle agenta a slim timeline (`kind` / `tool` / čas / `status`). `AgentMonitor` u stejné `generation_id` ponechá poslední prokázaný model, `modelParams`, `usage` i `contextUsage`, pokud je pozdější hook vynechá. Další adaptéry budou ACP.
+Boundary adapters and local persistence:
+
+- `CursorHooksAgentEventSource` reads the privacy-filtered `events-v3` spool as a retained broadcast. Every host has its own in-memory cursor; successful reads do not delete files, and expired files are cleaned only after retention.
+- Workspace roots from Cursor 3.18 on Windows are normalized from `/c:/Users/...` URI form before heartbeat correlation.
+- `CursorTranscriptAgentEventSource` observes only path, size, and modification time under `~/.cursor/projects`. It never opens transcript contents. UUID filenames distinguish the main session and each subagent instance.
+- The transcript fallback uses three-minute activity evidence, extended to eight minutes for a subagent whose parent is still active. An active subagent keeps the parent in a coordination state.
+- Terminal Hook evidence wins over older fallback metadata. A newer transcript write can reactivate an identity; expired fallback evidence can demote non-terminal `working` to `idle` when a stop event is missing.
+- `CompositeAgentEventSource` merges the Hook and transcript streams.
+- `CursorWindowPresenceDirectory` reads `windows-v1` heartbeats with the same seven-second lease and process-ID validation as the extension reporter.
+- `CursorComposerHeaderStore` performs a narrow read-only lookup of `composerId` and chat `name` in Cursor's local database.
+- `LocalUsageLedger` deduplicates runtime-reported generation tokens, merges progressive values by maximum, retains up to 50,000 records, and aggregates by full workspace path, model, workspace/model, and day. It never estimates missing usage. Context-window fill is not written to this ledger.
+- `LocalActivityLog` is append-only NDJSON at `%LOCALAPPDATA%/CursorOffice/activity-log.ndjson`. It retains the last snapshot per agent and a slim timeline containing only kind, tool, time, and status.
+- `AgentMonitor` preserves the last evidenced model, safe model parameters, usage, and context usage within the same generation when a later event omits them.
+
+Future control adapters belong in this layer.
 
 ### CursorOffice.Host
 
-Lokální konzolový proces vlastněný extension. Jeho standardní vstup a výstup jsou vyhrazené pro verzovaný NDJSON protokol; diagnostika musí směřovat na standardní chybový výstup. Po `host.ready` a `usage.changed` host načte `LocalActivityLog`, `Upsert`ne agenty do existujícího `AgentRegistry`, jednou označí chaty mrtvých heartbeat oken jako `offline`, tiché `working` bez čerstvého důkazu práce shodí na `idle` (čas poslední aktivity se nemění) a teprve potom aplikuje stejná TTL pravidla jako průběžný cleanup a pošle `agents.snapshot`. Smyčka `AgentMonitor` a periodický cleanup začínají až poté; pozdější `agent.changed` i úspěšné `Remove` se do logu také připisují. `CursorWindowPresenceDirectory` čte stejné sedmisekundové heartbeat lease jako extension reporter, včetně mrtvého PID.
+A local console process owned by the extension. Standard input and output are reserved for the versioned NDJSON protocol; diagnostics go to standard error.
+
+Startup order is deliberate:
+
+1. Emit `host.ready` and the current `usage.changed` aggregate.
+2. Restore the latest snapshots from `LocalActivityLog` into `AgentRegistry`.
+3. Mark members of dead heartbeat windows as `offline`.
+4. Demote restored `working` states without fresh evidence to `idle` without changing their last-activity time.
+5. Apply the same TTL rules used by periodic cleanup.
+6. Emit `agents.snapshot`.
+7. Start live monitoring and cleanup loops.
+
+Later `agent.changed` events and successful removals are appended to the activity log.
 
 ### CursorOffice.Hook
 
-Krátce žijící pasivní proces volaný globálními následnými Cursor hooks. Extension jej instaluje do stabilní uživatelské cesty. Z příchozího JSON vědomě zahazuje prompty, reasoning, obsah souborů, příkazy i výsledky nástrojů. Kromě stavu předá model ze společného payloadu, volitelné generační `usage`, `modelParams` a z `preCompact` samostatné `contextUsage`. Atomicky uloží pouze normalizované stavové metadata do `%LOCALAPPDATA%/CursorOffice/events-v3`. `CursorHooksAgentEventSource` je přečte jako retenční broadcast; zpracování jedním hostem je neodebere ostatním.
+A short-lived passive process invoked by global Cursor Hooks. The extension installs it to a stable per-user path.
 
-## TypeScript projekty
+The process deliberately discards prompts, responses, reasoning, file contents, commands, and tool results. It keeps only normalized state metadata, an optional sanitized subagent task, model evidence, optional generation usage, safe model parameters, and separate context-window usage from `preCompact`. Events are written atomically to `%LOCALAPPDATA%/CursorOffice/events-v3`.
+
+The Hook is fail-open and returns no permission decision.
+
+## TypeScript projects
 
 ### CursorOffice.Extension
 
-Co nejtenčí adaptér nad `vscode` API. Otevírá Webview, spravuje životní cyklus C# procesu a přeposílá zprávy. `LocalHostClient` automaticky hledá vývojový nebo zabalený host, spouští jej bez viditelného konzolového okna, validuje protokol verze 1 a slučuje události `agent.changed` do aktuální projekce. Doménová rozhodnutí sem nepatří.
+A thin adapter over the `vscode` API. It opens the Webview, owns the C# host lifecycle, manages the global Hook installation, reports window presence, and forwards messages.
+
+`LocalHostClient` discovers a development or packaged host, starts it without a visible console window, validates protocol version 1, and merges `agent.changed` messages into the current projection. Domain decisions do not belong here.
 
 ### CursorOffice.Webview
 
-Pracovní rig zvedá ramena a předklání trup tak, aby ruce dopadly na rovinu klávesnice místo do klína; stoly mají vlastní klávesy, podložku a myš. Kávový plánovač doplňuje nepracovní a společenské chování o vícefázový kuchyňský workflow. Kávovar a dřez jsou samostatná rezervovaná POI; po přípravě může postava odnést hrnek na židli, k volnému stolu, do lounge nebo do rozhovoru. Rig skládá držení a opakované doušky se sezením a sociální animací. Tempo sahá od rychlého dopití po dlouhé usrkávání a je deterministicky odvozené z identity. Přechod do `working` kávový cyklus preemptuje, uvolní jeho POI a přes běžné pracovní směrování pošle agenta ke stolu; pracující agent nový cyklus nezahajuje. S prázdným hrnkem se postava po skončení případného rozhovoru vrátí k dřezu a v režimu mytí používá obě ruce i viditelný proud vody. Hrnek je součástí kostry pravé ruky, ale kompenzuje její rotaci, aby při chůzi zůstal vzpřímený. Závažný nebo terminální lifecycle může cyklus rovněž zrušit. Stojící postavy se dále protahují, mávají majiteli a dvě až čtyři nepracující postavy mohou zahájit spontánní rozhovor na gauči, kolem poradního stolu nebo ve stojícím hloučku. Skupinový koordinátor atomicky rezervuje celou formaci, čeká na posledního příchozího, nepravidelně střídá jednoho mluvčího a po skončení nechá členy různě dlouho na místě. Skutečný agent ve stavu `waitingForUser` se z volnočasového plánovače vyjme, rezervuje stojící POI a periodicky přehrává samostatné gesto `attention`: natočení k majiteli, pohled vzhůru, pulzující ikona a obě ruce nad hlavou. Syntetický manažer okna toto gesto nepoužívá. Interaktivní nábytek odděluje walkable příchodový bod od lokální vizuální kotvy: navigační group zůstane před colliderem, zatímco procedurální rig, stín a výběrový kruh během sednutí přejedou na sedák; typ `sofaSeat` navíc používá uvolněnější posed než poradní židle. Jmenovka je ve výchozím stavu jen kompaktní jméno; raycast nad tělem i sprite jména otevře úplná metadata, po opuštění drží krátkou časovou prodlevu a výběr postavy ji ponechá otevřenou trvale.
+The presentation boundary. It receives a normalized state projection and has no direct access to Node.js, the local file system, or the C# host.
 
-Vykreslování, kamera, pohyb, animace a prezentační UI. Webview pracuje pouze s projekcí stavu přijatou od extension a nemá přímý přístup k Node.js ani C# hostu. Budova je rozdělena na funkční místnosti propojené dveřmi. Visibility graph nad AABB kolizní mapou vede agenty i majitele kolem stěn, nábytku i sedících pracovníků u PC. Úzké dveře jsou navíc dynamické portály: první příchozí, který jimi skutečně prochází, si průchod krátce rezervuje, ostatní čekají ve FIFO frontě před prahem; jádro dveří vypíná boční separaci jen mezi dvěma pohybujícími se chodci. Sedící nebo stojící pracovník u počítače se obchází, dveře neblokuje. Mimo dveře funguje crowd avoidance: z trajektorie se předpoví konflikt, stabilní priorita zabrání oscilaci, jeden chodec krátce vyčká a poté dostane boční mezibody kolem dynamické překážky. Pracovní židle nestačí-li, další agenti dostanou stojící hot-desk mimo dveřní uličku; počet postav se neomezuje. Stavový watchdog měří skutečný postup a zaseknutou trasu automaticky přepočítá. Přijetí trasy porovnává všechny waypointy, takže objížďka ke stejnému cíli není chybně zahozena. Stav určuje pracovní sezení, poradní, chybovou nebo odpočinkovou zónu. Dokončený hlavní agent přejde do autonomního volného režimu; dočasný podagent po handoffu, zastavení, chybě nebo zániku instance přejde do časově omezeného volného režimu a poté odchází řízeně přes východ. Starý terminální snapshot odchod neruší, zatímco skutečná nová aktivita postavu oživí. Sociální koordinátor převádí diskrétní `UserPrompt`, `AgentResponse`, `DelegationStarted` a `HandoffCompleted` na frontované návštěvy mezi majitelem, hlavním agentem a podagentem. Účastníci plánují běžnou kolizní trasu, natočí se proti sobě, střídají mluvení a naslouchání a poté obnoví původní POI. Během rozhovoru používají štítky dvě výškové úrovně a dokončený podagent má odchod odložený až za handoff. Oddělený ambientní koordinátor spravuje vícečlenné idle skupiny; skutečná Cursor interakce jej může kdykoli preemptovat bez ztráty odchodového deadlinu. Každá postava má živě překreslovaný 3D štítek se jménem, stavem a podle přepínačů v Nastavení kanceláře i modelem, činností, doloženými tokeny poslední generace a zaplněním kontextu z `preCompact`. Strukturovaný inspector doplňuje workspace, knoby modelu a lokální ledger. Přepínače `hud.showModel`, `hud.showTokens` a `hud.showActivity` jen schovají prezentaci; data nemění. Nepracující postavy rezervují volná POI, střídají sezení, rozhlížení, mávání a skupinové spontánní rozhovory. Pozorovací kamera explicitně mapuje levé tažení na orbit, stisknuté kolečko a pravé tlačítko na půdorysný pan, rolování na zoom a WASD/QE na plynulý klávesový pohyb; `Home` obnoví výchozí kompozici. Pozice a cíl kamery se ukládají do stavu Webview. Majitel je lokálně ovladatelný pomocí WASD relativního k natočení kamery po výběru jeho postavy; přímý pohyb vstupuje do stejného `walk` stavu jako plánovaná trasa, takže hýbe nohama i pažemi. `Esc` vrací klávesy režimu kamery. Kliknutí na volnou podlahu jej přesune i bez předchozího výběru a jeho pozice se rovněž ukládá. Ruční vstup na devět sekund přebíjí autonomii a přeruší její sociální sekvenci. Po nečinnosti se majitel znovu zapojí do skutečné Cursor konverzace, případně se vrátí k monitorování u stolu nebo navštíví volného agenta; tato vrstva nevytváří fiktivní práci ani nové Cursor úlohy.
+Its responsibilities include:
 
-Webview je rozdělen na malé odpovědnosti:
+- Three.js scene, lighting, camera, procedural office, and rendering loop;
+- procedural articulated character rig and animation blending;
+- state-driven seating, work, attention, error, completion, and idle behavior;
+- interaction queues for prompt assignment, delegation, and handoff;
+- deterministic ambient groups, gestures, and the complete coffee lifecycle;
+- collision-aware navigation, door traffic, dynamic avoidance, and recovery;
+- POI reservations, furniture approach points, and visual anchors;
+- team hierarchy, filters, settings, inspector, labels, and usage views;
+- user-controlled owner character and optional owner autonomy.
 
-```text
-main.ts                         # composition root a host messages
-contracts.ts                    # datový kontrakt webview
-ui/OfficeHud.ts                 # metriky, seznam, výběr, inspector a ledger
-ui/OfficeSettings.ts            # in-office GUI: jazyk, značka, vzhled, barvy a přepínače modelu/tokenů/činnosti
-world/OfficeWorld.ts            # Three.js scéna, kamera, lifecycle a sociální koordinátor
-world/AnimatedCharacterController.ts # vlastní procedurální rig a animation blending
-world/CharacterStateMachine.ts  # deklarativní vizuální stavy a přechody
-world/OfficeNavigation.ts       # visibility-graph A*, kolize a sliding
-world/OfficePoiManager.ts       # rezervace míst a ochrana proti překryvu agentů
-world/DoorTrafficManager.ts     # FIFO rezervace úzkých dveří a ochrana před deadlockem
-world/layout.ts                 # místnosti, překážky, POI a stavové cíle
-```
+Characters working at a desk use an ergonomic pose aligned to the keyboard surface. Furniture keeps a safe walkable approach point separate from the visual seating anchor. The coffee maker and sink are independently reserved POIs; a real work event can preempt the entire coffee cycle and release its reservations.
 
-## Obecný organizační model
+The visibility graph plans around static AABB obstacles. Narrow doors use FIFO portal reservations. Outside door cores, the crowd system predicts conflicts, assigns stable priority, inserts side waypoints, and replans stuck routes with other characters treated as temporary circular obstacles. Extra workers use standing hot desks rather than being hidden when chairs run out.
 
-Cursor veřejně neposkytuje spolehlivé ID konkrétního desktopového okna. Každý extension host si proto vytvoří dočasnou lokální identitu, zveřejňuje heartbeat s workspace a stavem zaměření a hook při odeslání promptu provede důkazově omezenou korelaci. Nejednoznačný případ zůstane nezařazený:
+The Webview is split into focused responsibilities:
 
 ```text
-majitel (uživatel)
-└── workspace / repozitář
-    └── manažer Cursor okna (lokální extension heartbeat)
-        └── pracovní agent / hlavní konverzace (stabilní conversation_id)
-            └── dočasný podagent / pracovník (subagent_id, parent conversation_id)
+main.ts                              # composition root and host messages
+contracts.ts                         # Webview data contract
+ui/OfficeHud.ts                      # metrics, list, selection, inspector, ledger
+ui/OfficeSettings.ts                 # language, branding, appearance, colors, visibility
+world/OfficeWorld.ts                 # scene, camera, lifecycle, and social coordination
+world/AnimatedCharacterController.ts # procedural rig and animation blending
+world/CharacterStateMachine.ts       # declarative visual states and transitions
+world/OfficeNavigation.ts            # visibility-graph A*, collision, and sliding
+world/OfficePoiManager.ts            # reservations and overlap prevention
+world/DoorTrafficManager.ts          # FIFO door reservation and deadlock protection
+world/layout.ts                      # rooms, obstacles, POIs, and state destinations
 ```
 
-`beforeSubmitPrompt` může vazbu konverzace přepnout do aktuálně zaměřeného okna. Pozdější background události zůstávají u uložené konverzace a podagent dědí okno rodiče. Manažer je stabilní prezentační entita vytvořená z heartbeat přítomnosti; nemá vlastní model ani generaci, ale zobrazuje výslovně označený souhrn modelů týmu a doloženou spotřebu workspace. Více chatů ve stejném okně jsou samostatní pracovní agenti pod ním; agent s potomky se mění na vedoucího/seniora, zatímco model i spotřeba jednotlivé generace zůstávají u skutečných runtime agentů. Hook metadata jsou primární zdroj životního cyklu, modelu, činnosti, volitelných generačních tokenů i kontextu z `preCompact`. Pasivní metadata transkriptů zůstávají krátkým fallbackem pro příchod unikátních podagentů; fallback tokeny ani kontext nevymýšlí.
+## Organizational projection
 
-Procedurální geometrie je současný fallback a současně rychlý nástroj pro návrh dispozice. Produkční GLB assety později vstoupí přes stejnou vrstvu `OfficeWorld`; stavový řadič ani HUD na konkrétní geometrii záviset nebudou.
+Cursor does not publicly expose a reliable desktop-window ID. Each extension host therefore creates a temporary local identity, publishes workspace/focus heartbeats, and lets `beforeSubmitPrompt` establish an evidence-limited conversation association.
 
-## Směr závislostí
+```text
+owner (user)
+└── workspace / repository
+    └── Cursor window manager (local extension heartbeat)
+        └── working agent / main conversation (stable conversation_id)
+            └── temporary subagent / worker (subagent ID + parent ID)
+```
+
+An ambiguous conversation remains unassigned. A later prompt can move the same conversation to the currently focused matching window. Background events use the stored association; subagents inherit their parent's window.
+
+The manager is a stable presentation entity created from heartbeat presence. It has no model or generation, but may display an explicitly labeled team/model summary and workspace usage aggregate. Main chats own runtime model and usage data; a chat with children is presented as a senior agent.
+
+Procedural geometry is both the current renderer and a rapid layout tool. Future production GLB assets enter through the same `OfficeWorld` boundary, without changing the behavior state contract or HUD.
+
+## Dependency direction
 
 ```text
 Core <- Application <- Infrastructure
@@ -101,15 +151,18 @@ Core <- Application <- Infrastructure
                    └── Host
 ```
 
-`Core` nesmí referencovat žádnou vyšší vrstvu. TypeScript projekty sdílejí pouze serializovaný protokol, nikoliv C# assembly.
+`Core` must never reference a higher layer. The TypeScript projects share only serialized messages, not C# assemblies.
 
-## Bezpečnostní hranice
+## Security boundaries
 
-- Veškerá komunikace je lokální; MVP neotevírá síťový port.
-- Webview používá Content Security Policy a načítá pouze zabalené lokální zdroje.
-- Webview zůstává v jednom lokálním JavaScript bundle, aby nonce-based CSP nevyžadovala povolení dalších zdrojů skriptů.
-- Obsah promptů a zdrojových souborů se do 3D scény neposílá, pokud jej uživatel později výslovně nepovolí.
-- Globální hooks jsou pouze následné nebo lifecycle události; bridge nemůže povolit, zakázat ani změnit akci agenta.
-- Usage ledger obsahuje pouze ID generace, čas, název a úplnou lokální cestu workspace, model a čtyři tokenové čítače. Chybějící hodnoty se neodhadují. `contextUsage` z `preCompact` zůstává jen na snapshotu a do ledgeru se nezapisuje.
-- Activity log ukládá poslední známé snapshoty agentů a privacy-safe timeline. Řádek `activity` má jen identitu, čas, `kind`, `status` a volitelný název nástroje; prompt, reasoning, těla souborů ani výstup nástroje se nezapisují.
-- Cursor Office nevolá neveřejné síťové API. Na Windows provádí úzce omezený read-only dotaz do lokální Cursor databáze `state.vscdb`: z `composerHeaders` čte pouze `composerId` a pole `name` pro název chatu. Zprávy, FTS index ani obsah konverzace nedotazuje. Záložní detektor pracuje pouze s metadaty lokálních transcript souborů a neotevírá jejich obsah.
+- All runtime communication is local; no network listener is opened.
+- The Webview uses Content Security Policy and loads packaged local resources only.
+- The Webview remains a single local JavaScript bundle so nonce-based CSP does not require additional script origins.
+- Prompt text and source-file contents never enter the 3D projection.
+- Global Hooks are passive lifecycle observers and cannot allow, deny, or change agent actions.
+- The usage ledger contains generation ID, time, full local workspace path, model, and four token counters only. Missing values are not estimated.
+- Context-window fill stays on the current snapshot and is not written to the token ledger.
+- The activity log stores last snapshots plus a privacy-safe timeline; it excludes prompt, response, reasoning, file bodies, and tool output.
+- The only direct Cursor database query is read-only and limited to `composerId` and the `name` field in `composerHeaders`.
+- Transcript fallback reads file-system metadata only and never opens transcript contents.
+- The extension package metadata and public documentation are English; runtime UI remains intentionally localized in English and Czech.

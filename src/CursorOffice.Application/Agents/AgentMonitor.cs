@@ -177,10 +177,10 @@ public sealed class AgentMonitor(AgentRegistry registry, IAgentEventSource event
             && agent.Status == AgentStatus.Working);
 
     private static string CoordinatingTask(string? workspace) =>
-        $"{workspace ?? "Cursor workspace"}: koordinuje aktivní podagenty";
+        $"{workspace ?? "Cursor workspace"}: coordinating active subagents";
 
     private static string CoordinatingDetail(string? workspace, string? previous) =>
         previous is null
-            ? $"{workspace ?? "Cursor workspace"} · rodič aktivního podagenta"
+            ? $"{workspace ?? "Cursor workspace"} · parent of an active subagent"
             : previous;
 }

@@ -60,32 +60,48 @@ public sealed record AgentActivityEvent(
             return false;
         }
 
-        const string usesPrefix = "používá nástroj ";
-        const string usedPrefix = "použil nástroj ";
-        const string failedPrefix = "nástroj ";
-        const string failedSuffix = " selhal";
-
-        if (TrySuffixAfter(currentTask, usesPrefix, out tool)
-            || TrySuffixAfter(currentTask, usedPrefix, out tool))
+        if (TrySuffixAfter(currentTask, "using tool ", out tool)
+            || TrySuffixAfter(currentTask, "used tool ", out tool)
+            // Preserve compatibility with activity logs created before the
+            // repository and runtime labels switched to English.
+            || TrySuffixAfter(currentTask, "používá nástroj ", out tool)
+            || TrySuffixAfter(currentTask, "použil nástroj ", out tool))
         {
             return true;
         }
 
-        var failedAt = currentTask.LastIndexOf(failedSuffix, StringComparison.Ordinal);
+        if (TryBetweenLast(currentTask, "tool ", " failed", out tool))
+        {
+            return true;
+        }
+
+        return TryBetweenLast(currentTask, "nástroj ", " selhal", out tool);
+    }
+
+    private static bool TryBetweenLast(
+        string currentTask,
+        string prefix,
+        string suffix,
+        out string? tool)
+    {
+        var failedAt = currentTask.LastIndexOf(suffix, StringComparison.Ordinal);
         if (failedAt <= 0)
         {
+            tool = null;
             return false;
         }
 
-        var prefixAt = currentTask.LastIndexOf(failedPrefix, failedAt, StringComparison.Ordinal);
+        var prefixAt = currentTask.LastIndexOf(prefix, failedAt, StringComparison.Ordinal);
         if (prefixAt < 0)
         {
+            tool = null;
             return false;
         }
 
-        var start = prefixAt + failedPrefix.Length;
+        var start = prefixAt + prefix.Length;
         if (start >= failedAt)
         {
+            tool = null;
             return false;
         }
 

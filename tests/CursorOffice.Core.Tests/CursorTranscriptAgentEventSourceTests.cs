@@ -107,7 +107,7 @@ public sealed class CursorTranscriptAgentEventSourceTests
                 activity.AgentId == $"cursor-{conversationId}"
                 && activity.Status == AgentStatus.Working
                 && activity.Kind == AgentKind.Primary
-                && activity.CurrentTask == "HarnessProject: koordinuje aktivní podagenty");
+                && activity.CurrentTask == "HarnessProject: coordinating active subagents");
             Assert.Contains(activities, activity =>
                 activity.AgentId == $"cursor-subagent-{subagentId}"
                 && activity.Status == AgentStatus.Working

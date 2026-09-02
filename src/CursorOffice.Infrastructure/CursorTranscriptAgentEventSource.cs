@@ -324,18 +324,18 @@ public sealed class CursorTranscriptAgentEventSource : IAgentEventSource
             ? $"cursor-subagent-{transcript.InstanceId}"
             : $"cursor-{transcript.InstanceId}";
         var taskState = isCoordinating
-            ? "koordinuje aktivní podagenty"
+            ? "coordinating active subagents"
             : status == AgentStatus.Working
-                ? "aktivní"
-                : "naposledy zaznamenaný";
+                ? "active"
+                : "last observed";
 
         return new AgentActivity(
             agentId,
             transcript.IsSubagent ? $"Cursor {kind} {shortId}" : $"Cursor Agent {shortId}",
-            $"{transcript.Workspace} · lokální {kind.ToLowerInvariant()}",
+            $"{transcript.Workspace} · local {kind.ToLowerInvariant()}",
             status,
             $"{transcript.Workspace}: {taskState}",
-            $"{transcript.Workspace} · sledována pouze metadata transkriptu",
+            $"{transcript.Workspace} · transcript metadata only",
             occurredAt ?? transcript.LastWriteTime,
             transcript.IsSubagent ? AgentKind.Subagent : AgentKind.Primary,
             transcript.ParentConversationId is null ? null : $"cursor-{transcript.ParentConversationId}",

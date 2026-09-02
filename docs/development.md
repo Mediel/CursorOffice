@@ -1,47 +1,58 @@
-# Lokální vývoj
+# Local development
 
-## Nástroje
+## Toolchain
 
-- .NET SDK 10.0.400+
-- Visual Studio s workloady pro .NET a Node.js/TypeScript
-- Node.js 22.12+
+- .NET SDK 10.0.400 or newer compatible feature band
+- Node.js 22.12 or newer
 - pnpm 11
+- Optional: Visual Studio with .NET and Node.js/TypeScript workloads
 
 ## .NET
 
 ```powershell
 dotnet restore CursorOffice.slnx
+dotnet format CursorOffice.slnx --verify-no-changes
 dotnet build CursorOffice.slnx
 dotnet test CursorOffice.slnx
 ```
 
-Projekt používá warnings-as-errors. Společná pravidla jsou v `Directory.Build.props` a `.editorconfig`.
+Warnings are treated as errors. Shared rules live in `Directory.Build.props` and `.editorconfig`.
 
-## Frontend a extension
+## Frontend and extension
 
 ```powershell
-pnpm install
+pnpm install --frozen-lockfile
 pnpm check
 pnpm build
 ```
 
-`CursorOffice.Webview` sestaví statické soubory do `CursorOffice.Extension/media`. `CursorOffice.Extension` následně vytvoří Node.js bundle do `CursorOffice.Extension/dist`.
+`CursorOffice.Webview` writes static assets to `CursorOffice.Extension/media`. `CursorOffice.Extension` then creates the Node.js bundle in `CursorOffice.Extension/dist`.
 
-Samostatný Vite náhled podporuje `?socialDemo=1` pro frontu reálných párových rozhovorů, `?groupDemo=sofa`, `?groupDemo=meeting` a `?groupDemo=standing` pro deterministické idle skupiny, `?crowdDemo=1` pro deterministický head-on test dvou agentů, `?workDemo=1` pro detail pracovního posedu, `?kitchenDemo=1` pro celý cyklus kávovar → nesení k pracovnímu nebo společenskému místu → několik doušků → návrat → mytí pod tekoucí vodou, `?couchDemo=1` pro přechod z walkable bodu na vizuální kotvu sedáku, `?ownerDemo=1` pro WASD chůzi majitele a následný návrat autonomie, `?attentionDemo=1` pro periodické upozornění agenta ve stavu `waitingForUser` a `?retirementDemo=1` pro zrychlený lifecycle odcházejícího podagenta. Stav scénáře je během testu dostupný v `data-kitchen-demo`, včetně `coffeePhase`, `coffeeState`, aktivity kávovaru a proudu vody. Crowd scénář musí skončit bočními waypointy a bezpečným minutím, nikoli posouváním stojící postavy.
+The standalone Vite preview accepts deterministic demo query parameters:
 
-Generované adresáře `media`, `dist`, `node_modules`, publikovaný C# host a hook bridge se necommitují.
+- `?socialDemo=1` — queued pair conversations driven by event-shaped signals
+- `?groupDemo=sofa`, `meeting`, or `standing` — idle social groups
+- `?crowdDemo=1` — two-agent head-on avoidance
+- `?workDemo=1` — detailed seated work pose
+- `?kitchenDemo=1` — complete make, carry, drink, return, and wash coffee cycle
+- `?couchDemo=1` — walkable approach point to visual sofa anchor
+- `?ownerDemo=1` — owner movement followed by autonomy
+- `?attentionDemo=1` — periodic `waitingForUser` attention behavior
+- `?retirementDemo=1` — accelerated departing-subagent lifecycle
 
-## Spuštění C# hostu
+Generated `media`, `dist`, `node_modules`, published host/bridge folders, and VSIX packages must not be committed.
+
+## Run the C# host
 
 ```powershell
 dotnet run --project src/CursorOffice.Host
 ```
 
-Standardní výstup je strojově čitelný NDJSON. Pro diagnostické zprávy používejte `Console.Error`, nikdy `Console.Out`.
+Standard output is machine-readable NDJSON. Write diagnostics to `Console.Error`, never `Console.Out`.
 
-## Debug extension v Cursoru
+## Debug the extension in Cursor
 
-Po `dotnet build` a `pnpm build` spusťte nové okno Cursoru s cestou k vývojové extension:
+After `dotnet build` and `pnpm build`, open a new Cursor window with the development extension:
 
 ```powershell
 $repoRoot = (Resolve-Path .).Path
@@ -50,27 +61,27 @@ Cursor.exe --new-window `
   $repoRoot
 ```
 
-V tomto okně spusťte z Command Palette `Cursor Office: Open Office`. Po změně extension kódu použijte `Developer: Reload Window`; změna samotného Webview vyžaduje také `pnpm build`.
+Run `Cursor Office: Open Office` from the Command Palette. After extension-code changes, use `Developer: Reload Window`. A Webview-only change still requires `pnpm build`.
 
-Výpis lokálního hostu je v Output panelu pod kanálem `Cursor Office`. Automatickou detekci lze přepsat nastavením `cursorOffice.hostPath`, které přijímá `.dll`, `.csproj` nebo spustitelný soubor.
+Host diagnostics are available in the `Cursor Office` Output channel. `cursorOffice.hostPath` can override automatic host discovery with a `.dll`, `.csproj`, or executable path.
 
 ## Test Cursor Hooks
 
-Nainstalovaná extension spravuje uživatelskou konfiguraci `~/.cursor/hooks.json` příkazy `Install Global Hooks` a `Uninstall Global Hooks`. Bridge běží ze stabilní cesty `%LOCALAPPDATA%/CursorOffice/bridge` a sleduje všechny lokální Cursor workspaces.
+The installed extension manages its entries in `~/.cursor/hooks.json` through `Install Global Hooks` and `Uninstall Global Hooks`. The bridge runs from `%LOCALAPPDATA%/CursorOffice/bridge` and observes all local Cursor workspaces.
 
-Testovací pořadí:
+Recommended sequence:
 
-1. `Developer: Reload Window`, aby extension spustila aktuální dlouho běžící host.
-2. `Cursor Office: Open Office`.
-3. V Output panelu zkontrolovat kanály `Cursor Office` a `Hooks`.
-4. Spustit lokální hlavní agentní relaci nebo harness s více subagenty.
-5. Ověřit příchod postav po hook události nebo po vzniku unikátního souboru v `agent-transcripts/<conversation>/subagents/`.
+1. Run `Developer: Reload Window` so the current extension starts the current host.
+2. Open Cursor Office.
+3. Inspect the `Cursor Office` and `Hooks` Output channels.
+4. Start a local main-agent session or a harness with multiple subagents.
+5. Verify that characters appear from Hook events or unique files under `agent-transcripts/<conversation>/subagents/`.
 
-Hook je fail-open. Poslouchá také `beforeSubmitPrompt`, `preToolUse` a `subagentStart`, ale vrací prázdnou odpověď a žádnou akci neblokuje ani nemění. Syntetický end-to-end test musí poslat událost do `%LOCALAPPDATA%/CursorOffice/events-v3`; dva souběžné hosty ji musí oba převést na `agent.changed` a soubor zůstane do konce retenčního okna. Záložní `CursorTranscriptAgentEventSource` musí rozlišit hlavní transcript a každý podagentní soubor bez otevření jejich obsahu. Aktivní podagent musí navíc promítnout svého rodiče jako pracujícího koordinátora, i když je hlavní transcript starší než počáteční lookback. Terminální hook stav nesmí fallback přepsat; čerstvý transcript zápis může znovu nastavit `working` po neterminálním hook stavu. Aktivní podagent drží rodiče ve `working`. Výchozí fallback okno je 3 minuty, u podagenta s čerstvým rodičem až 8 minut; přesné ukončení řídí hooky.
+The hook is fail-open: it returns an empty response and never blocks or changes an action. A synthetic end-to-end test should place an event in `%LOCALAPPDATA%/CursorOffice/events-v3`; two concurrent hosts must both emit `agent.changed`, and the spool file must survive until retention cleanup. The transcript fallback must distinguish main and subagent files without opening their contents.
 
-## VSIX
+## Build a VSIX
 
-Před balením musí být publikovány oba .NET procesy:
+Publish both .NET processes before packaging:
 
 ```powershell
 dotnet publish src/CursorOffice.Host -c Release --no-self-contained -o src/CursorOffice.Extension/host

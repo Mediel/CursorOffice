@@ -1,3 +1,3 @@
-# Zdrojové assety
+# Source assets
 
-Sem patří vlastní `.blend` soubory, zdrojové textury a exportní scény. Produkční Webview je nikdy nenačítá přímo; exportuje se do `assets/runtime` podle `docs/3d-pipeline.md`.
+Original `.blend` files, source textures, and export scenes belong here. The production Webview never loads them directly; they are exported to `assets/runtime` according to [docs/3d-pipeline.md](../../docs/3d-pipeline.md).

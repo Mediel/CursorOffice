@@ -56,16 +56,16 @@ export function projectWindowTeams(bootstrap: OfficeBootstrap): AgentSnapshot[] 
       : agent.interactionKind;
     return {
       ...agent,
-      displayName: conversationTitle || `${isTeamLead ? 'Vedoucí agent' : 'Agent'} ${shortAgentId(agent.id)}`,
+      displayName: conversationTitle || `${isTeamLead ? 'Senior agent' : 'Agent'} ${shortAgentId(agent.id)}`,
       role: `${agent.workspace?.trim() || 'Cursor'} · ${isTeamLead
-        ? 'senior / koordinátor'
+        ? 'senior / coordinator'
         : parentAgentId
-          ? 'pracovní agent'
-          : 'nezařazený chat'}`,
+          ? 'working agent'
+          : 'unassigned chat'}`,
       detail: [
         conversationTitle ? `Chat: ${conversationTitle}` : undefined,
         agent.detail,
-        isTeamLead ? `koordinuje ${formatCount(childCount, 'podagenta', 'podagenty', 'podagentů')}` : undefined
+        isTeamLead ? `coordinating ${formatCount(childCount, 'subagent', 'subagents')}` : undefined
       ].filter(Boolean).join(' · ') || agent.detail,
       kind: 'subagent' as const,
       parentAgentId,
@@ -191,7 +191,7 @@ function canonicalWorkspace(value: string): string {
     .replace(/\p{M}/gu, '')
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .trim()
-    .toLocaleLowerCase('cs');
+    .toLocaleLowerCase('en-US');
 }
 
 function intersects(left: ReadonlySet<string>, right: ReadonlySet<string>): boolean {
@@ -237,28 +237,28 @@ function createWindowManager(
     ? ` · ${shortWindowId(window)}`
     : '';
   const currentTask = activeInteraction?.interactionKind === 'userPrompt'
-    ? `Probírá s majitelem zadání pro chat ${chatLabel(activeInteraction)}`
+    ? `Discussing a new assignment for chat ${chatLabel(activeInteraction)} with the owner`
     : activeInteraction?.interactionKind === 'agentResponse'
-      ? `Předává majiteli výsledek chatu ${chatLabel(activeInteraction)}`
+      ? `Handing the result from chat ${chatLabel(activeInteraction)} to the owner`
       : workingCount > 0
-        ? `Koordinuje ${formatCount(workingCount, 'aktivní práci', 'aktivní práce', 'aktivních prací')}`
+        ? `Coordinating ${formatCount(workingCount, 'active task', 'active tasks')}`
         : conversations.length > 0
-          ? `Dohlíží na ${formatCount(conversations.length, 'chat', 'chaty', 'chatů')}`
-          : 'Čeká na práci ve svém Cursor okně';
+          ? `Supervising ${formatCount(conversations.length, 'chat', 'chats')}`
+          : 'Waiting for work in this Cursor window';
   const workspacePath = window.workspaceRoots[0];
   const workspaceUsage = bootstrap.usage?.byWorkspace.find(bucket =>
     samePath(bucket.key, workspacePath)
-    || bucket.key.localeCompare(workspace, 'cs', { sensitivity: 'accent' }) === 0
+    || bucket.key.localeCompare(workspace, 'en-US', { sensitivity: 'accent' }) === 0
   );
   const teamModels = collectTeamModels(agents, bootstrap, workspacePath);
 
   return {
     id: managerId(window.id),
-    displayName: `Manažer ${workspace}${suffix}`,
-    role: `${workspace} · manažer Cursor okna`,
+    displayName: `Manager ${workspace}${suffix}`,
+    role: `${workspace} · Cursor window manager`,
     status,
     currentTask,
-    detail: `${window.label} · ${formatCount(conversations.length, 'chat', 'chaty', 'chatů')}`,
+    detail: `${window.label} · ${formatCount(conversations.length, 'chat', 'chats')}`,
     lastActivityAt: activeInteraction?.lastActivityAt ?? window.updatedAt,
     kind: 'primary',
     workspace,
@@ -302,13 +302,13 @@ function collectTeamModels(
   if (workspacePath) {
     const prefix = `${workspacePath} · `;
     for (const bucket of bootstrap.usage?.byWorkspaceModel ?? []) {
-      if (bucket.key.toLocaleLowerCase('cs').startsWith(prefix.toLocaleLowerCase('cs'))) {
+      if (bucket.key.toLocaleLowerCase('en-US').startsWith(prefix.toLocaleLowerCase('en-US'))) {
         const model = bucket.key.slice(prefix.length).trim();
         if (model) models.add(model);
       }
     }
   }
-  return [...models].sort((left, right) => left.localeCompare(right, 'cs'));
+  return [...models].sort((left, right) => left.localeCompare(right, 'en-US'));
 }
 
 function samePath(left: string, right?: string): boolean {
@@ -316,7 +316,7 @@ function samePath(left: string, right?: string): boolean {
 }
 
 function normalizePath(value: string): string {
-  return value.replace(/[\\/]+$/gu, '').toLocaleLowerCase('cs');
+  return value.replace(/[\\/]+$/gu, '').toLocaleLowerCase('en-US');
 }
 
 function uniqueWindows(
@@ -386,9 +386,9 @@ function shortAgentId(agentId: string): string {
 
 function chatLabel(agent: AgentSnapshot): string {
   const title = agent.conversationTitle?.trim();
-  return title ? `„${title}“` : shortAgentId(agent.id);
+  return title ? `"${title}"` : shortAgentId(agent.id);
 }
 
-function formatCount(count: number, one: string, few: string, many: string): string {
-  return `${count} ${count === 1 ? one : count >= 2 && count <= 4 ? few : many}`;
+function formatCount(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? singular : plural}`;
 }

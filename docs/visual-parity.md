@@ -1,38 +1,38 @@
-# Vizuální a funkční parita
+# Visual and functional parity
 
-Referenčním bodem je The Delegation v0.2.0. Cursor Office nemá kopírovat jeho Gemini multimediální studio; cílem je dosáhnout stejné kvality prostorové vizualizace a transparentnosti agentů nad lokálními Cursor událostmi.
+The Delegation v0.2.0 is a quality reference, not a code or asset source. Cursor Office does not aim to reproduce its Gemini multimedia studio. The goal is comparable spatial clarity and agent transparency using local Cursor events.
 
-## Aktuální matice
+## Current matrix
 
-| Oblast | Cursor Office | Další produkční krok |
-| --- | --- | --- |
-| 3D kancelář | vlastní vícemístnostní dispozice: ředitelna, studio, debug lab, lounge, porada, recepce, kuchyňka a dveřní průchody | vlastní optimalizované GLB prostředí |
-| Postavy | vlastní procedurální kloubový rig, obličej a deklarativní stavový automat: sednutí/vstávání, práce u klávesnice, hovor, poslech, mávání, protažení, pití kávy a emoce | Blender/GLB rig při zachování stejného stavového kontraktu |
-| Pohyb | visibility-graph A*, kolize nábytku/stěn, sliding, konstantní rychlost a exkluzivně rezervované POI | navmesh generovaný z finálního modelu |
-| Interakce | volná orbit/pan/zoom kamera ovládaná myší i klávesami, perzistence pohledu, raycasting, výběr, přístupný seznam a ovladatelný majitel | kontextové akce a schvalování |
-| Inspector | role, úkol, stav, model, doložené tokeny poslední generace a privacy-safe activity timeline | activity historie, tool calls a usage dashboard |
-| Živá data | Cursor Hooks + fallback metadata transcriptů, primary/subagent hierarchie, stabilní ID, parent/workspace/model a TTL cleanup | uživatelské názvy rolí, ACP adaptér |
-| Workflow | stavové zóny, exkluzivní POI a nábytkové approach/visual kotvy, dokončení → prodleva → odchod dveřmi → odstranění | activity timeline, kanban, delegace a review flow |
-| Výkon | jeden lokální bundle, omezené DPR a sdílený render loop | instancing, LOD a profilování desítek agentů |
-| Asset licence | pouze vlastní/CC0, žádné upstream modely | evidence exportů a automatická validace rozpočtů |
+| Area | Cursor Office today | Next production step |
+|---|---|---|
+| 3D office | Original multi-room procedural layout | Original optimized GLB environment |
+| Characters | Procedural articulated rig, face, and state machine | Blender/GLB rig preserving the same state contract |
+| Movement | Visibility-graph A*, static collision, sliding, constant speed, reserved POIs | Navmesh generated from the final model |
+| Interaction | Mouse/keyboard camera, persistence, raycasting, selection, accessible list, controllable owner | Context actions and approvals |
+| Inspector | Role, task, state, model, exact last-generation tokens, privacy-safe timeline | Deeper history, tool calls, and usage dashboard |
+| Live data | Cursor Hooks plus transcript metadata fallback, stable hierarchy and TTL cleanup | User-defined role names and ACP adapter |
+| Workflow | State zones, furniture anchors, completion cooldown, exit, and removal | Timeline, Kanban, delegation, and review flow |
+| Performance | One local bundle, capped DPR, shared render loop | Instancing, LOD, and profiling with dozens of agents |
+| Asset licensing | Original or CC0 assets only; no upstream models | Export records and automated budget validation |
 
-## Co znamená „parita“
+## Definition of parity
 
-Parita je splněna, když uživatel v Cursoru bez cloudového Cursor API:
+Parity is reached when a Cursor user can, without the Cursor Cloud API:
 
-1. vidí všechny lokální agenty a jejich aktuální činnost,
-2. rozumí předávání práce, čekání na člověka a chybám,
-3. může otevřít historii a technické detaily každého agenta,
-4. sleduje přirozený pohyb a animace ve vlastní profesionální 3D kanceláři,
-5. udrží plynulý Webview při cílovém počtu agentů,
-6. může celé řešení sestavit, spustit a používat lokálně.
+1. see all relevant local agents and their current activity;
+2. understand delegation, human-wait states, and errors;
+3. inspect history and technical details for each agent;
+4. follow natural movement and animation in an original professional 3D office;
+5. keep the Webview smooth at the target agent count; and
+6. build, run, and use the entire solution locally.
 
-Multimodální generování obrázků, hudby a videa není součástí parity: jde o jiný produktový cíl a odporovalo by požadavku na lokální Cursor-first nástroj.
+Image, music, and video generation are outside this definition. They are a different product direction and do not fit a local, Cursor-first observational tool.
 
-## Nejbližší kritická cesta
+## Critical path
 
-1. Stabilní korelace subagentů a perzistentní activity log.
-2. Inspector s historií a schvalovacím tokem.
-3. Blender vertical slice: jedna rigovaná postava, jedna sada animací a jeden modul kanceláře.
-4. GLB loader, animation blending a navmesh.
-5. Instancing/LOD a měření výkonu.
+1. Stable subagent correlation and persistent activity history.
+2. Inspector history and approval flow.
+3. Blender vertical slice: one rigged character, one animation set, one office module.
+4. GLB loading, animation blending, and navmesh.
+5. Instancing, LOD, and performance measurement.

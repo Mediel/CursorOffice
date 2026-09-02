@@ -1,5 +1,5 @@
-# Runtime assety
+# Runtime assets
 
-Do tohoto adresáře patří pouze optimalizované GLB soubory určené k zabalení do extension. Každý `runtime/<cesta>/<model>.glb` musí mít manifest `manifests/<cesta>/<model>.asset.json`.
+Only optimized GLB files intended for the distributed extension belong here. Every `runtime/<path>/<model>.glb` requires a matching `manifests/<path>/<model>.asset.json`.
 
-Současná procedurální kancelář žádný runtime asset nepotřebuje.
+The current procedural office does not require a runtime model.

@@ -15,7 +15,7 @@ public sealed class AgentsSnapshotProtocolTests
             "Primary Agent",
             "Cursor chat",
             AgentStatus.Working,
-            "CursorOffice: používá nástroj Shell",
+            "CursorOffice: using tool Shell",
             "never persist this prompt",
             occurredAt,
             model: "claude-opus-4-7");
@@ -50,7 +50,7 @@ public sealed class AgentsSnapshotProtocolTests
         Assert.False(row.TryGetProperty("Status", out _));
         Assert.False(row.TryGetProperty("Kind", out _));
         Assert.DoesNotContain("never persist this prompt", row.GetRawText(), StringComparison.Ordinal);
-        Assert.DoesNotContain("používá nástroj", row.GetRawText(), StringComparison.Ordinal);
+        Assert.DoesNotContain("using tool", row.GetRawText(), StringComparison.Ordinal);
     }
 
     [Fact]

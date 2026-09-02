@@ -40,10 +40,10 @@ public sealed class OfficeHookNormalizer
             workspaceRoots,
             eventName,
             occurredAt);
-        var displayName = $"Manažer {workspace}";
+        var displayName = $"Manager {workspace}";
         var role = model is null ? $"{workspace} · agent" : $"{workspace} · {Limit(model, 70)}";
         var status = "working";
-        var currentTask = $"Pracuje v {workspace}";
+        var currentTask = $"Working in {workspace}";
         var detail = $"{workspace} · Cursor hook: {eventName}";
         var agentId = $"cursor-{conversationId}";
         var kind = "primary";
@@ -55,61 +55,61 @@ public sealed class OfficeHookNormalizer
         {
             case "beforeSubmitPrompt":
                 interactionKind = "userPrompt";
-                currentTask = $"{workspace}: přijímá nové zadání";
-                detail = $"{workspace} · uživatel předal zadání";
+                currentTask = $"{workspace}: receiving a new assignment";
+                detail = $"{workspace} · user submitted an assignment";
                 break;
             case "sessionStart":
                 currentTask = GetBoolean(input, "is_background_agent")
-                    ? $"{workspace}: spouští práci na pozadí"
-                    : $"{workspace}: zahajuje agentní relaci";
-                detail = $"{workspace} · režim: {GetString(input, "composer_mode") ?? "agent"}";
+                    ? $"{workspace}: starting background work"
+                    : $"{workspace}: starting an agent session";
+                detail = $"{workspace} · mode: {GetString(input, "composer_mode") ?? "agent"}";
                 break;
             case "sessionEnd":
                 var reason = GetString(input, "reason") ?? "completed";
                 status = reason == "error" ? "error" : "offline";
-                currentTask = $"{workspace}: relace byla ukončena";
-                detail = $"{workspace} · důvod: {reason}";
+                currentTask = $"{workspace}: session ended";
+                detail = $"{workspace} · reason: {reason}";
                 break;
             case "afterAgentResponse":
                 interactionKind = "agentResponse";
                 status = "waitingForUser";
-                currentTask = $"{workspace}: předává odpověď uživateli";
-                detail = $"{workspace} · odpověď dokončena";
+                currentTask = $"{workspace}: handing the response to the user";
+                detail = $"{workspace} · response completed";
                 break;
             case "postToolUse":
-                var tool = GetString(input, "tool_name") ?? "nástroj";
-                currentTask = $"{workspace}: použil nástroj {Limit(tool, 60)}";
+                var tool = GetString(input, "tool_name") ?? "tool";
+                currentTask = $"{workspace}: used tool {Limit(tool, 60)}";
                 detail = GetNumber(input, "duration") is { } duration
-                    ? $"{workspace} · dokončeno za {duration.ToString(CultureInfo.InvariantCulture)} ms"
-                    : $"{workspace} · nástroj dokončen";
+                    ? $"{workspace} · completed in {duration.ToString(CultureInfo.InvariantCulture)} ms"
+                    : $"{workspace} · tool completed";
                 break;
             case "preToolUse":
-                var startedTool = GetString(input, "tool_name") ?? "nástroj";
-                currentTask = $"{workspace}: používá nástroj {Limit(startedTool, 60)}";
-                detail = $"{workspace} · lokální Cursor tool";
+                var startedTool = GetString(input, "tool_name") ?? "tool";
+                currentTask = $"{workspace}: using tool {Limit(startedTool, 60)}";
+                detail = $"{workspace} · local Cursor tool";
                 break;
             case "postToolUseFailure":
                 status = "error";
-                currentTask = $"{workspace}: nástroj {Limit(GetString(input, "tool_name") ?? "neznámý", 60)} selhal";
-                detail = $"{workspace} · typ chyby: {GetString(input, "failure_type") ?? "error"}";
+                currentTask = $"{workspace}: tool {Limit(GetString(input, "tool_name") ?? "unknown", 60)} failed";
+                detail = $"{workspace} · failure type: {GetString(input, "failure_type") ?? "error"}";
                 break;
             case "afterAgentThought":
-                currentTask = $"{workspace}: analyzuje další krok";
+                currentTask = $"{workspace}: analyzing the next step";
                 detail = GetNumber(input, "duration_ms") is { } thoughtDuration
-                    ? $"{workspace} · analýza trvala {thoughtDuration.ToString(CultureInfo.InvariantCulture)} ms"
-                    : $"{workspace} · analýza dokončena";
+                    ? $"{workspace} · analysis took {thoughtDuration.ToString(CultureInfo.InvariantCulture)} ms"
+                    : $"{workspace} · analysis completed";
                 break;
             case "afterFileEdit":
                 var editedFile = Basename(GetString(input, "file_path"));
                 currentTask = editedFile is null
-                    ? $"{workspace}: upravil soubor"
-                    : $"{workspace}: upravil {Limit(editedFile, 60)}";
-                detail = $"{workspace} · úprava souboru";
+                    ? $"{workspace}: edited a file"
+                    : $"{workspace}: edited {Limit(editedFile, 60)}";
+                detail = $"{workspace} · file edit";
                 break;
             case "preCompact":
                 contextUsage = GetContextUsage(input);
                 var trigger = GetString(input, "trigger") ?? "auto";
-                currentTask = $"{workspace}: komprimuje kontext";
+                currentTask = $"{workspace}: compacting context";
                 detail = FormatCompactDetail(workspace, trigger, contextUsage);
                 break;
             case "subagentStart":
@@ -124,12 +124,12 @@ public sealed class OfficeHookNormalizer
                 isParallelWorker = GetBoolean(input, "is_parallel_worker");
                 model = FirstNonEmpty(GetString(input, "subagent_model"), model);
                 role = $"{workspace} · {SubagentPresentation.FormatType(startedAgentType)}";
-                currentTask = startedTask ?? $"{workspace}: zahajuje dílčí úkol";
+                currentTask = startedTask ?? $"{workspace}: starting a delegated task";
                 var branch = SubagentPresentation.FormatActivity(GetString(input, "git_branch"), 70);
                 detail = (isParallelWorker
-                    ? $"{workspace} · paralelní pracovník"
-                    : $"{workspace} · podagent")
-                    + (branch is null ? string.Empty : $" · větev {branch}");
+                    ? $"{workspace} · parallel worker"
+                    : $"{workspace} · subagent")
+                    + (branch is null ? string.Empty : $" · branch {branch}");
                 sessions.RememberStart(startedAgentId, parentConversationId ?? conversationId, workspace, occurredAt);
                 break;
             case "subagentStop":
@@ -151,9 +151,9 @@ public sealed class OfficeHookNormalizer
                     _ => "offline",
                 };
                 currentTask = stoppedTask is null
-                    ? $"{workspace}: předává výsledek vedoucímu"
-                    : $"Předává: {stoppedTask}";
-                detail = $"{workspace} · zprávy: {GetNumber(input, "message_count") ?? 0}, nástroje: {GetNumber(input, "tool_call_count") ?? 0}";
+                    ? $"{workspace}: handing the result to the senior"
+                    : $"Handing off: {stoppedTask}";
+                detail = $"{workspace} · messages: {GetNumber(input, "message_count") ?? 0}, tools: {GetNumber(input, "tool_call_count") ?? 0}";
                 break;
             case "stop":
                 var stopStatus = GetString(input, "status") ?? "completed";
@@ -165,9 +165,9 @@ public sealed class OfficeHookNormalizer
                 };
                 currentTask = status switch
                 {
-                    "completed" => $"{workspace}: agent dokončil práci",
-                    "error" => $"{workspace}: agent skončil s chybou",
-                    _ => $"{workspace}: agent byl zastaven",
+                    "completed" => $"{workspace}: agent completed work",
+                    "error" => $"{workspace}: agent ended with an error",
+                    _ => $"{workspace}: agent was stopped",
                 };
                 detail = $"{workspace} · agent loop: {stopStatus}";
                 break;
@@ -326,7 +326,7 @@ public sealed class OfficeHookNormalizer
         var parts = new List<string> { workspace };
         if (usage?.ContextUsagePercent is { } percent)
         {
-            parts.Add($"kontext {percent.ToString(CultureInfo.InvariantCulture)}%");
+            parts.Add($"context {percent.ToString(CultureInfo.InvariantCulture)}%");
         }
 
         if (usage?.ContextTokens is { } tokens && usage.ContextWindowSize is { } window)

@@ -3,10 +3,10 @@ namespace CursorOffice.Core.Tests;
 public sealed class WorkspacePathNormalizerTests
 {
     [Theory]
-    [InlineData("/c:/Users/erdtM/source/repos/CursorOffice", @"C:\Users\erdtM\source\repos\CursorOffice")]
-    [InlineData("/C:/Users/erdtM/source/repos/CursorOffice", @"C:\Users\erdtM\source\repos\CursorOffice")]
-    [InlineData(@"C:\Users\erdtM\source\repos\CursorOffice", @"C:\Users\erdtM\source\repos\CursorOffice")]
-    [InlineData("file:///c:/Users/erdtM/source/repos/CursorOffice", @"C:\Users\erdtM\source\repos\CursorOffice")]
+    [InlineData("/c:/Users/dev/source/repos/CursorOffice", @"C:\Users\dev\source\repos\CursorOffice")]
+    [InlineData("/C:/Users/dev/source/repos/CursorOffice", @"C:\Users\dev\source\repos\CursorOffice")]
+    [InlineData(@"C:\Users\dev\source\repos\CursorOffice", @"C:\Users\dev\source\repos\CursorOffice")]
+    [InlineData("file:///c:/Users/dev/source/repos/CursorOffice", @"C:\Users\dev\source\repos\CursorOffice")]
     public void Normalize_ConvertsCursorUriRootsToFilesystemPaths(string source, string expected)
     {
         Assert.Equal(expected, WorkspacePathNormalizer.Normalize(source));
@@ -15,7 +15,7 @@ public sealed class WorkspacePathNormalizerTests
     [Fact]
     public void Normalize_DoesNotTreatUnixRootAsAWindowsDrive()
     {
-        var normalized = WorkspacePathNormalizer.Normalize("/home/erdtm/repos/CursorOffice");
+        var normalized = WorkspacePathNormalizer.Normalize("/home/dev/repos/CursorOffice");
         Assert.False(normalized.StartsWith(@"H:\", StringComparison.OrdinalIgnoreCase));
         Assert.Contains("home", normalized, StringComparison.OrdinalIgnoreCase);
     }

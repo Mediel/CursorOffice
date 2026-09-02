@@ -1,224 +1,221 @@
-# Uživatelská příručka
+# User guide
 
-## Co Cursor Office dělá
+## What Cursor Office does
 
-Cursor Office je lokální editorová záložka v Cursoru. V jedné 3D kanceláři zobrazuje živá Cursor okna, jejich hlavní chaty a dočasné subagenty. Neslouží jako další chatovací klient a agenty přímo neovládá; vizualizuje lokální události, které Cursor nebo použitý harness skutečně poskytne.
+Cursor Office is a local editor tab for Cursor. It displays live Cursor windows, their main chats, and temporary subagents together in one 3D office.
 
-## Instalace
+It is not another chat client and does not directly control agents. It visualizes local events that Cursor or a compatible harness actually provides.
 
-Repozitář neobsahuje generovaný VSIX. Po lokálním sestavení podle [vývojové dokumentace](development.md#vsix) vznikne `artifacts/CursorOffice.vsix`; publikované verze mohou být později dostupné také v GitHub Releases.
+## Installation
+
+The repository does not commit a generated VSIX. After following the [VSIX build instructions](development.md#build-a-vsix), install `artifacts/CursorOffice.vsix`:
 
 ```powershell
 cursor.cmd --install-extension artifacts\CursorOffice.vsix --force
 ```
 
-Po instalaci nebo aktualizaci spusťte v každém již otevřeném Cursor okně `Developer: Reload Window`. Každé okno má vlastní extension host a bez reloadu by mohlo dál používat starý C# proces nebo bridge.
+After installation or upgrade, run `Developer: Reload Window` in every Cursor window that was already open. Each window has its own extension host and may otherwise continue running an older C# process or Hook bridge.
 
-V Command Palette potom spusťte:
+Then run these commands from the Command Palette:
 
-1. `Cursor Office: Install Global Hooks` – jednorázově nainstaluje pasivní hooky pro lokálního uživatele.
-2. `Cursor Office: Open Office` – otevře kancelář jako běžnou editorovou záložku.
+1. `Cursor Office: Install Global Hooks` — installs passive Hooks once for the local user.
+2. `Cursor Office: Open Office` — opens the office as a regular editor tab.
 
-Hooky se ukládají do uživatelského `~/.cursor/hooks.json`. Příkaz zachová cizí hook konfiguraci a spravuje pouze položky Cursor Office. Odinstalovat je lze přes `Cursor Office: Uninstall Global Hooks`.
+Hooks are stored in `~/.cursor/hooks.json`. The command preserves unrelated Hook configuration and manages only Cursor Office entries. Remove them with `Cursor Office: Uninstall Global Hooks`.
 
-## První ověření
+## First verification
 
-Po otevření kanceláře by měla být vidět postava majitele a jeden manažer za každé živé Cursor okno. Manažer existuje i tehdy, když v jeho okně právě neběží chat.
+After opening the office, you should see the owner and one manager for every live Cursor window. A manager exists even when its window currently has no active chat.
 
-Pro rychlou kontrolu:
+Quick verification:
 
-1. Otevřete dvě Cursor okna s různými workspace.
-2. V obou použijte `Developer: Reload Window`.
-3. V kterémkoli z nich otevřete Cursor Office a nastavte filtr `Všechna okna`.
-4. Očekávejte dva manažery, například `Manažer Frontend` a `Manažer Backend`.
-5. Odešlete prompt v jednom chatu. Manažer příslušného okna má přejít do práce a chat se objeví jako jeho pracovní agent.
-6. Spusťte harness se subagenty. Každá rozpoznaná instance má dostat vlastní postavu pod rodičovským chatem.
+1. Open two Cursor windows with different workspaces.
+2. Run `Developer: Reload Window` in both.
+3. Open Cursor Office and select the `All windows` filter.
+4. Expect two managers, for example `Manager Frontend` and `Manager Backend`.
+5. Submit a prompt in one chat. Its window manager should react and the chat should appear as a working agent.
+6. Start a harness with subagents. Each detected instance should receive a character under its parent chat.
 
-Krátké zpoždění je normální: hook spool se kontroluje zhruba po 150 ms, fallback metadata po 300 ms a heartbeat okna se obnovuje každé dvě sekundy.
+Small delays are normal: the Hook spool is polled roughly every 150 ms, transcript metadata roughly every 300 ms, and window heartbeats renew every two seconds.
 
-## Jak číst hierarchii
+## Reading the hierarchy
 
 ```text
-Majitel
-└── Manažer Backend
-    ├── Checkout confirmation / hlavní chat
-    │   ├── General Purpose a13f2b / subagent
-    │   └── Tester 91c04e / subagent
-    └── QR payment euro support / další hlavní chat
+owner
+└── Cursor window manager
+    ├── main chat / working agent
+    │   └── subagent / temporary worker
+    └── another main chat
+        └── its subagents
 ```
 
-- **Manažer** znamená Cursor okno, nikoli model nebo další placenou generaci.
-- **Agent hlavního chatu** znamená jednu konverzaci. Nese skutečný model a případnou spotřebu.
-- **Vedoucí agent / senior** je tentýž chat ve chvíli, kdy koordinuje subagenty.
-- **Subagent** znamená jednu konkrétní instanci delegované práce, ne pouze název role v konfiguraci.
-
-Podrobný lifecycle a předávání práce jsou v [modelu chování](behavior-model.md).
-
-## Ovládání kamery
-
-| Vstup | Akce |
+| Role | Meaning |
 |---|---|
-| Tažení levým tlačítkem | Otočení kamery kolem cíle |
-| Tažení stisknutým kolečkem | Posun pohledu po půdorysu |
-| Tažení pravým tlačítkem | Posun pohledu po půdorysu |
-| Kolečko | Zoom |
-| `WASD` nebo šipky bez vybraného majitele | Posun kamery relativně k pohledu |
-| `Q` / `E` | Otočení pohledu |
-| `Home` nebo `0` | Výchozí kompozice kamery |
+| Owner | The local user and only directly controlled character |
+| Manager | One live Cursor desktop window |
+| Main chat | One Cursor conversation assigned to that window |
+| Senior agent | The same chat while coordinating active subagents |
+| Subagent | One concrete delegated-work instance |
 
-Pozice kamery i její cíl se ukládají do stavu Webview. Zavření a opětovné otevření panelu proto běžně zachová poslední pohled.
+The manager aggregates a team but has no model generation or token usage of its own. Model, activity, and generation usage belong to the real chat or subagent.
 
-## Ovládání majitele
+Multiple chats in the same window appear as distinct agents under one manager. When a chat gains children, its existing character changes presentation to a senior agent rather than being duplicated.
 
-- Klikněte na volnou podlahu a majitel tam dojde bezpečnou trasou.
-- Klikněte na majitele nebo jeho kartu v týmovém panelu; `WASD` a šipky potom ovládají jeho postavu relativně ke kameře.
-- `Esc` zruší výběr a vrátí pohybové klávesy kameře.
-- Ruční chůze přeruší autonomní rozhovor a na devět sekund vypne automatiku.
-- U delší kliknuté trasy se čas nečinnosti začne počítat až po příchodu.
-- Po nečinnosti může majitel jít ke svému PC, navštívit volného agenta nebo se účastnit skutečné Cursor interakce.
+## Camera controls
 
-Majitelova autonomie pouze pohybuje postavou. Neodesílá prompt a nemůže bez uživatele spustit ani změnit agenta.
-
-## Výběr a štítky
-
-Nad hlavou zůstává běžně jen kompaktní jméno. Úplný panel se otevře:
-
-- najetím myši na postavu,
-- najetím na její jmenovku,
-- kliknutím na postavu nebo její kartu.
-
-Po odjetí myši detail krátce zůstane otevřený, aby nebliknul při přejezdu mezi tělem a štítkem. Vybraná postava jej drží otevřený trvale. Kliknutí mimo postavu výběr neruší, pokud kliknutí zároveň posílá majitele na podlahu; `Esc` je jistý způsob návratu.
-
-Detail podle dostupných dat ukazuje stav, roli, workspace, chat, aktuální činnost, model, doložené tokeny poslední generace a volitelné zaplnění kontextového okna. Stejné údaje, pokud je v Nastavení zapnete, nese i karta v týmovém panelu a 3D štítek. `Model čeká na hook`, `tokeny Cursor neposlal` nebo chybějící řádek kontextu je vědomé přiznání chybějícího runtime údaje, ne chyba výpočtu.
-
-### Jak číst barvy
-
-Spodní legenda odděluje dvě různé informace:
-
-- **Role / košile:** zelený majitel, tyrkysový manažer Cursor okna, modrý hlavní chat nebo senior a fialový programátor/subagent. Mírně odlišné odstíny v rámci jedné barevné rodiny pouze rozlišují jednotlivé postavy. Manažeři, chaty/senioři a subagenti mají na košili stejný standardní bílý obdélníkový štítek se svým jménem; tento štítek nevyjadřuje roli ani stav. Majitel jej nenosí a odlišuje jej zlatá jmenovka nad hlavou; postava nenosí korunu.
-- **Vzhled:** výška, stavba těla, odstín pokožky, barva vlasů a účes jsou různorodé, ale pro stejnou identitu stabilní i po reloadu. Část postav má vousy (strnisko, knír, plnovous, kotlety a další tvary) nebo brýle; sluneční brýle jsou vzácné a většina tváří zůstává bez nich. Workeři často nosí čepici, kšiltovku, kšilt nebo velká sluchátka. Manažer je upravenější (límec, kravata, bez čepice). Majitel má ve výchozím profilu upravený tmavý účes s pěšinkou a patkou, bez vousů i brýlí.
-- **Stav / tělo a kruh:** šedý neznámý, modrý volný, zelený pracující, žlutý čekající na uživatele, červený problém, fialový hotový a tmavě šedý offline.
-
-Role se během života postavy nemění kromě prezentačního povýšení hlavního chatu na seniora, které používá stejnou modrou kategorii. Stav se naopak mění průběžně. Stejné rozdělení používají barevné avatary a stavové popisky v týmovém panelu.
-
-## Týmový panel a filtry
-
-Týmový panel vpravo používá stejnou hierarchii jako kancelář. Kliknutí na kartu vybere postavu a otevře její detail.
-
-Filtr může zobrazit:
-
-- všechna živá Cursor okna,
-- jeden konkrétní tým okna,
-- nezařazené konverzace.
-
-Skrytí týmu filtrem jej nezastaví. Postavy dál pracují, přesouvají se a mohou odejít. Po přepnutí zpět se zobrazí v aktuálním stavu.
-
-## Stavy a místnosti
-
-| Co vidíte | Typický význam |
+| Input | Action |
 |---|---|
-| Postava sedí u monitoru a píše | `working` |
-| Skutečný agent stojí, dívá se vzhůru a mává oběma rukama | `waitingForUser`; potřebuje pozornost nebo odpověď |
-| Postava je v debug laboratoři | `error` |
-| Oslava, lounge nebo gauč | `completed` nebo volný režim |
-| Kuchyňka, mávání, protažení | `idle` / volnočasové chování |
-| Více postav na gauči, u poradního stolu nebo v kruhu | Ambientní idle konverzace; nejde o novou práci v Cursoru |
-| Cesta ke vstupu | Ukončený lifecycle a odchod |
+| Left drag | Orbit the camera |
+| Middle drag or right drag | Pan across the floor plan |
+| Mouse wheel | Zoom |
+| `WASD` / arrows | Move the camera when the owner is not selected |
+| `Q` / `E` | Rotate the view |
+| `Home` or `0` | Restore the default camera position and target |
 
-Místnost není vždy přímým důkazem aktuálního stavu. Postava může být na cestě, čekat ve dveřích na protijdoucího, vracet se z rozhovoru nebo dokončovat předchozí animaci. Kolem někoho, kdo sedí nebo stojí u počítače, se dá projít; dveřní uličky zůstávají volné. Když je víc pracujících agentů než židlí, další dostanou stojící pracovní místo.
+The camera position and target are retained in Webview state.
 
-Délky akcí se záměrně liší. Čas posezení začíná až po příchodu na gauč nebo židli. Nepracující postava může kávu popíjet vsedě, u volného stolu, v lounge nebo během rozhovoru. Některá dopije během několika sekund, běžná ji pije desítky sekund a pomalý piják může usrkávat přes dvě minuty. Jakmile agent začne skutečně pracovat, kávový cyklus se ukončí a postava vždy zamíří ke svému počítači; pracující agent si novou kávu nechodí připravovat. Protažení, mávání, postávání i nezávazné rozhovory mají vlastní rozsahy a při každém dalším cyklu dostanou jinou stabilní hodnotu. Idle konverzace může mít dva až čtyři členy. Skupina si předem rezervuje sousední místa, počká na posledního příchozího, střídá jednoho mluvčího a po skončení se rozpadá postupně. Reálný prompt nebo handoff má vždy přednost.
+## Owner controls
 
-## Jak číst model, činnost, tokeny a kontext
+- Click open floor to send the owner there through collision-safe navigation.
+- Click the owner to select it; `WASD` or arrow keys then walk relative to camera direction.
+- Press `Esc` to deselect the owner and return the keyboard to camera control.
+- If the owner is seated, the stand-up transition completes before walking begins.
 
-Všechny čtyři údaje jsou observační. Cursor Office je ukáže jen tehdy, když je hook nebo jiný přesný runtime zdroj opravdu dodá.
+Manual input always wins. After nine seconds without manual movement, counted after arrival for a long clicked route, owner autonomy can resume. It may respond to a real handoff, monitor work from the owner's desk, visit an idle team member, or sit quietly. It never submits prompts or starts agents.
 
-| Údaj | Kde ho číst | Co znamená | Když chybí |
-|---|---|---|---|
-| **Model** | karta týmu, inspector, 3D štítek | `model` / `model_id` ze společného hook payloadu; u podagenta i `subagent_model`. V detailu může doplnit knoby `thinking`, `effort`, `context`. | „model čeká na hook“ — Cursor Office model z UI nedoplňuje |
-| **Činnost** | karta týmu, inspector, 3D štítek | Privacy-safe popisek: nástroj, analýza, basename souboru, úkol podagenta nebo komprese kontextu | „Bez aktuálního úkolu“ — text promptu se nikdy neukazuje |
-| **Tokeny** | karta, inspector, 3D štítek a tlačítko `tokenů*` | Doložená generační spotřeba poslední generace (`input` / `output` / cache). Manažer ukazuje workspace agregaci, ne vlastní generaci. | „tokeny Cursor neposlal“ nebo „po dokončení generace“ — veřejný Hooks kontrakt účtované tokeny negarantuje |
-| **Kontext** | karta a inspector, pokud přišel `preCompact` | Zaplnění kontextového okna (`%` a/nebo `tokeny/okno`). Není účtovaná generace a není v ledgeru. | Řádek se nezobrazí — hook `preCompact` ještě nepřišel nebo nenesl čísla |
+## Selection and labels
 
-Tokenový údaj s hvězdičkou v záhlaví otevře lokální ledger. Ledger ukazuje pouze přesně oznámené generační hodnoty:
+Click a character or its team card to select it. Selection keeps the inspector and expanded overhead label open.
 
-- celkem,
-- podle úplné cesty workspace,
-- podle modelu,
-- podle kombinace workspace a modelu,
-- podle lokálního dne.
+The compact 3D label shows only the name. Hovering over the character or name expands state, model, current privacy-safe activity, and exact last-generation token evidence when enabled. The expanded label remains briefly after the pointer leaves.
 
-Jedna generace se započítá pouze jednou. Pokud runtime posílá průběžné čítače, uloží se jejich maxima. Ledger nic neodhaduje: chybějící spotřebu nezapisuje jako nulu a ceny nepočítá. Zaplnění kontextu do ledgeru nepatří.
+Every manager, chat, and subagent also wears a standard white shirt badge. The owner does not.
 
-## Co se stane po dokončení
+### Reading colors
 
-- Subagent se pokusí předat výsledek seniorovi, chvíli zůstane ve volném režimu a potom odejde přes východ.
-- Hlavní chat může po dokončení také odejít, ale pouhá neaktivita jej běžně drží výrazně déle.
-- Zavřené Cursor okno ztratí heartbeat; jeho manažer odejde a chaty i subagenty tohoto okna host přepne do `offline` a po 28 / 12 sekundách je odstraní.
-- Nová aktivita stejné identity může odchod zrušit nebo postavu znovu přivést.
+Two independent layers avoid confusing role with state:
 
-Přesná současná časování jsou v části [Neaktivita, dokončení a odchod](behavior-model.md#neaktivita-dokončení-a-odchod).
+- **Shirt color** is stable and identifies owner, manager, main chat/senior, or subagent.
+- **Light ring and overhead-label color** changes with `working`, `waitingForUser`, `error`, `completed`, `idle`, `offline`, or `unknown`.
 
-## Nastavení v kanceláři
+Role colors can be customized in Office Settings. State colors remain semantic.
 
-Konfigurovatelné věci se nastavují přímo v otevřené kanceláři. V záhlaví HUD klikněte na ozubené kolečko (`Nastavení kanceláře`). Panel zapisuje stejné klíče jako Cursor Settings a otevřená kancelář se aktualizuje ihned.
+## Team panel and filters
 
-| Sekce v panelu | Co lze nastavit |
+The team panel groups characters as workspace → Cursor window manager → main chat → subagent.
+
+Available filters:
+
+- `All windows` — the complete shared office
+- a specific window — its manager, chats, and subagents
+- `Unassigned` — conversations that could not be safely correlated with a desktop window
+
+Filtering changes visibility only. Hidden characters continue holding state, position, reservations, and lifecycle. Showing them again does not respawn them at the entrance.
+
+## States and rooms
+
+| State | Typical behavior |
 |---|---|
-| Jazyk | `auto`, čeština nebo English |
-| Název a logo | název v záhlaví a na kartě editoru; výběr nebo odstranění PNG/JPEG/WebP/GIF loga do 2 MB |
-| Majitel | přezdívka; prázdné pole použije lokální uživatelské jméno |
-| Vzhled majitele | účes, barva vlasů, pokožka, vousy a brýle; výchozí účes je upravená patka |
-| Barvy košil | majitel, manažer, hlavní chat/senior a subagent |
-| Zobrazení v kanceláři | přepínače **Zobrazit model**, **Zobrazit tokeny** a **Zobrazit činnost** (výchozí zapnuto) |
+| `working` | Uses an available desk or standing hot desk |
+| `waitingForUser` | Real agent stands, faces the owner, and periodically raises both hands |
+| `error` | Goes to the debug lab with a concerned animation |
+| `completed` | Brief celebration, then free time or retirement according to character type |
+| `idle` | Lounge, kitchen, meeting room, gestures, coffee, and conversations |
+| `offline` | Prepares to leave |
+| `unknown` | Neutral behavior without claiming work |
 
-Přepínače zobrazení schovají model, tokeny i kontext, nebo činnost, v týmovém seznamu, inspectoru i 3D štítku. Neschovají data: hook a ledger dál ukládají stejná metadata. `hostPath` v tomto panelu není; patří jen do Cursor Settings pro vývoj a diagnostiku.
+POIs are exclusively reserved. If every work chair is occupied, extra agents use standing work positions rather than disappearing.
 
-Stejné hodnoty lze změnit i v Cursor Settings:
+Idle characters can sit, stretch, wave, make coffee, and form conversations of two to four people. Coffee is a complete sequence: reserve the machine, prepare a cup, carry it, take repeated sips, reserve the sink, return the cup, and wash it. Real Cursor activity immediately preempts ambient behavior.
 
-| Nastavení | Význam |
+## Models, activity, tokens, and context
+
+All four values are observational and appear only when a precise runtime source provides them.
+
+| Value | Meaning | When missing |
+|---|---|---|
+| Model | `model` / `model_id` from a Hook; a subagent may report `subagent_model` | Cursor Office leaves it unknown rather than reading the UI |
+| Activity | Privacy-safe tool, analysis, file basename, subagent task, or compaction label | Shows no current assignment; prompt text is never displayed |
+| Tokens | Exact reported generation input/output/cache counters | Missing is unknown, not zero; the public Hook contract does not guarantee billing data |
+| Context | Optional context-window fill from `preCompact` | Hidden until a Hook supplies numeric evidence |
+
+Token data marked with an asterisk opens the local ledger. The ledger contains exact reported generation values grouped by total, full workspace path, model, workspace/model pair, and local day.
+
+Each generation is counted once. Progressive counters are merged by maximum. The ledger does not estimate missing usage or price. Context-window fill is a separate value and is not added to the ledger.
+
+Managers may show a clearly labeled workspace aggregate, not personal generation usage.
+
+## What happens after completion
+
+- A subagent attempts a handoff to its parent senior, remains briefly in free time, then exits through the door.
+- A terminal main chat may also retire, but a merely inactive chat remains much longer to support returning to it.
+- Closing a Cursor window ends its heartbeat. The manager exits and the host marks associated chats/subagents `offline` for short retention.
+- New activity with the same stable identity can cancel retirement or bring the character back.
+
+Exact timings are in [Inactivity, completion, and retirement](behavior-model.md#inactivity-completion-and-retirement).
+
+## Office Settings
+
+Click the gear in the HUD to open Office Settings. Changes write the same keys as Cursor Settings and update the open office immediately.
+
+| Section | Options |
 |---|---|
-| `cursorOffice.ownerName` | Přezdívka majitele; prázdná hodnota použije lokální uživatelské jméno |
-| `cursorOffice.ownerAppearance.*` | Účes, barva vlasů, pokožka, vousy a brýle majitele |
-| `cursorOffice.officeName` | Název v záhlaví kanceláře a na kartě editoru |
-| `cursorOffice.officeLogoPath` | Absolutní cesta k logu; prázdná hodnota zobrazí iniciály názvu |
-| `cursorOffice.language` | `auto`, `cs` nebo `en`; automatika použije češtinu pouze na českých Windows, jinak angličtinu |
-| `cursorOffice.shirtColors.*` | Barvy košil majitele, manažera, hlavního chatu/seniora a subagenta |
-| `cursorOffice.hud.showModel` | Model v seznamu, inspectoru a 3D štítku |
-| `cursorOffice.hud.showTokens` | Doložené tokeny a zaplnění kontextového okna |
-| `cursorOffice.hud.showActivity` | Aktuální činnost (nástroj, analýza, soubor, úkol podagenta) |
-| `cursorOffice.hostPath` | Volitelná absolutní cesta k host `.dll`, `.csproj` nebo spustitelnému souboru |
+| Language | Automatic, Czech, or English |
+| Name and logo | Office title and a PNG/JPEG/WebP/GIF logo up to 2 MB |
+| Owner | Nickname; empty uses the local user name |
+| Owner appearance | Hairstyle, hair color, skin tone, facial hair, and eyewear |
+| Shirt colors | Owner, manager, main chat/senior, and subagent |
+| Office display | Show model, tokens/context, and activity |
 
-Logo lze vybrat i příkazem `Cursor Office: Select Office Logo`. Instalovaná VSIX obsahuje vlastní publikovaný .NET 10 host a standardně žádnou ruční cestu nepotřebuje.
+Display switches hide presentation in the team list, inspector, and 3D labels. They do not change data collection or ledger storage. `hostPath` is intentionally absent from this panel because it is a development/diagnostic override.
 
-## Soukromí a lokální soubory
+The same values are available in Cursor Settings:
 
-Cursor Office nepoužívá Cursor Cloud API ani vlastní síťový server. Lokálně pracuje s těmito daty:
-
-| Umístění | Obsah |
+| Setting | Meaning |
 |---|---|
-| `~/.cursor/hooks.json` | Uživatelská konfigurace pasivních hooků |
-| `%LOCALAPPDATA%/CursorOffice/events-v3` | Krátkodobé privacy-filtered události s desetiminutovou retencí |
-| `%LOCALAPPDATA%/CursorOffice/windows-v1` | Heartbeat živých Cursor oken |
-| `%LOCALAPPDATA%/CursorOffice/conversation-windows-v1` | Hashovaná vazba konverzace na okno |
-| `%LOCALAPPDATA%/CursorOffice/usage-ledger.json` | Přesně oznámené lokální tokenové agregace |
-| `%LOCALAPPDATA%/CursorOffice/activity-log.ndjson` | Append-only poslední snapshoty agentů a privacy-safe timeline (`kind` / `tool` / čas / `status`) |
-| `~/.cursor/projects/.../agent-transcripts` | Pouze metadata souborů pro fallback; obsah se neotevírá |
-| `%APPDATA%/Cursor/User/globalStorage/state.vscdb` | Read-only dotaz pouze na hlavičku a název chatu |
+| `cursorOffice.ownerName` | Owner nickname; empty uses the local user name |
+| `cursorOffice.ownerAppearance.*` | Owner hairstyle, colors, facial hair, and eyewear |
+| `cursorOffice.officeName` | Header and editor-tab title |
+| `cursorOffice.officeLogoPath` | Absolute logo path; empty uses office-name initials |
+| `cursorOffice.language` | `auto`, `cs`, or `en`; auto uses Czech on Czech Windows and English otherwise |
+| `cursorOffice.shirtColors.*` | Role shirt colors |
+| `cursorOffice.hud.showModel` | Model in list, inspector, and 3D label |
+| `cursorOffice.hud.showTokens` | Exact generation tokens and context-window fill |
+| `cursorOffice.hud.showActivity` | Privacy-safe current activity |
+| `cursorOffice.hostPath` | Optional host `.dll`, `.csproj`, or executable override |
 
-Bridge zahazuje text promptu, odpovědi, reasoning, obsah souborů, příkazy a výstupy nástrojů. Krátký `task` nebo `description` subagenta může být očištěn a omezen na 140 znaků pro popisek práce; výstupní `summary` se zahazuje.
+You can also choose a logo with `Cursor Office: Select Office Logo`. An installed VSIX contains its published .NET host and normally needs no manual host path.
 
-## Aktualizace
+## Privacy and local files
 
-Po instalaci nové VSIX:
+Cursor Office does not use the Cursor Cloud API or run its own network server.
 
-1. spusťte `Developer: Reload Window` ve všech otevřených Cursor oknech,
-2. znovu otevřete Cursor Office,
-3. pokud byly hooks už nainstalované, extension při aktivaci obnoví svůj bridge ve stabilní cestě,
-4. ověřte verzi příkazem:
+| Location | Contents |
+|---|---|
+| `~/.cursor/hooks.json` | User-level passive Hook configuration |
+| `%LOCALAPPDATA%/CursorOffice/events-v3` | Privacy-filtered events with ten-minute retention |
+| `%LOCALAPPDATA%/CursorOffice/windows-v1` | Live Cursor-window heartbeats |
+| `%LOCALAPPDATA%/CursorOffice/conversation-windows-v1` | Hashed conversation-to-window associations |
+| `%LOCALAPPDATA%/CursorOffice/usage-ledger.json` | Exact reported local token aggregates |
+| `%LOCALAPPDATA%/CursorOffice/activity-log.ndjson` | Last snapshots and privacy-safe kind/tool/time/status timeline |
+| `~/.cursor/projects/.../agent-transcripts` | File metadata fallback only; contents are not opened |
+| `%APPDATA%/Cursor/User/globalStorage/state.vscdb` | Read-only conversation header/title lookup |
+
+The bridge discards prompt text, response text, reasoning, file contents, commands, and tool output. A short subagent `task` or `description` may be sanitized and limited to 140 characters; result `summary` is discarded.
+
+See [Local Cursor integration](cursor-integration.md) for the complete data model.
+
+## Updating
+
+After installing a new VSIX:
+
+1. run `Developer: Reload Window` in every open Cursor window;
+2. reopen Cursor Office;
+3. allow extension activation to refresh an already-installed Hook bridge at its stable path; and
+4. verify the version:
 
 ```powershell
 cursor.cmd --list-extensions --show-versions | Select-String cursor-office
 ```
 
-Pokud něco nesedí, pokračujte podle [diagnostiky](troubleshooting.md).
+If the office still behaves unexpectedly, continue with [troubleshooting](troubleshooting.md).
