@@ -13,7 +13,7 @@
     "clean": "node -e \"require('node:fs').rmSync('../CursorOffice.Extension/media',{recursive:true,force:true})\""
   },
   "dependencies": {
-    "three": "^0.179.0"
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@types/three": "^0.179.0",
